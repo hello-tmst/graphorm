@@ -1,13 +1,13 @@
 def test_update_graph(graph):
-    from graphorm import CommonNode, CommonEdge
+    from graphorm import Node, Edge
 
-    class Page(CommonNode):
+    class Page(Node):
         __primary_key__ = ["path", "parsed"]
 
         path: str
         parsed: bool
 
-    class Linked(CommonEdge):
+    class Linked(Edge):
         pass
 
     graph.add_node(

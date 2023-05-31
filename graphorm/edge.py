@@ -1,28 +1,26 @@
 from stringcase import camelcase
-
 from .registry import Registry
 from .utils import quote_string
-from .node import CommonNode
+from .node import Node
 from .common import Common
 
 
-class CommonEdge(Common):
-    __slots__ = {"src_node", "dst_node", "__relation__"}
+class Edge(Common):
+    __slots__ = {"__relation__", "src_node", "dst_node"}
 
-    def __init__(self, src_node, dst_node, _id=None, **data):
+    def __new__(cls, src_node, dst_node, /, *, _id: int = None, **kwargs) -> Common:
+        obj = super().__new__(cls, **kwargs)
+
         if src_node is None or dst_node is None:
             raise ValueError("Both src_node & dst_node must be provided")
 
-        if _id:
-            self.__id__ = _id
-        self.src_node = src_node
-        self.dst_node = dst_node
-
-        for key, value in data.items():
-            setattr(self, key, value)
+        setattr(obj, "__id__", _id)
+        setattr(obj, "src_node", src_node)
+        setattr(obj, "dst_node", dst_node)
+        return obj
 
     def __init_subclass__(cls) -> None:
-        cls.__relation__ = camelcase(cls.__name__)
+        setattr(cls, "__relation__", camelcase(cls.__name__))
 
         Registry.add_edge_relation(cls)
 
@@ -32,7 +30,7 @@ class CommonEdge(Common):
 
     def __str__(self):
         # Source node.
-        if isinstance(self.src_node, CommonNode):
+        if isinstance(self.src_node, Node):
             res = f"({str(self.src_node.alias)})"
         else:
             res = "()"
@@ -48,7 +46,7 @@ class CommonEdge(Common):
         res += "]->"
 
         # Dest node.
-        if isinstance(self.dst_node, CommonNode):
+        if isinstance(self.dst_node, Node):
             res += f"({str(self.dst_node.alias)})"
         else:
             res += "()"

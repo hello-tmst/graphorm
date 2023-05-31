@@ -4,8 +4,8 @@ from prettytable import PrettyTable
 from redis import ResponseError
 
 from .registry import Registry
-from .edge import CommonEdge
-from .node import CommonNode
+from .edge import Edge
+from .node import Node
 from .path import Path
 
 LABELS_ADDED = "Labels added"
@@ -264,9 +264,9 @@ class QueryResult:
             for row in self.result_set:
                 record = []
                 for idx, cell in enumerate(row):
-                    if type(cell) is CommonNode:
+                    if type(cell) is Node:
                         record.append(cell.toString())
-                    elif type(cell) is CommonEdge:
+                    elif type(cell) is Edge:
                         record.append(cell.toString())
                     else:
                         record.append(cell)

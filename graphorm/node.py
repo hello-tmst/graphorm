@@ -1,24 +1,26 @@
+import logging
+
 from stringcase import camelcase
+from dataclasses import dataclass
 
 from .registry import Registry
-from .common import Common
+from .common import Common, _init_fn
 from .utils import quote_string, random_string
 
 
-class CommonNode(Common):
+@dataclass
+class Node(Common):
     __slots__ = {"__alias__", "__label__", "__primary_key__"}
 
-    def __init__(self, _id=None, **data) -> None:
-        if _id:
-            self.__id__ = _id
+    def __new__(cls, /, *, _id: int = None, **kwargs) -> Common:
+        obj = super().__new__(cls, **kwargs)
 
-        self.__alias__ = random_string()
-
-        for key, value in data.items():
-            setattr(self, key, value)
+        setattr(obj, "__id__", _id)
+        setattr(obj, "__alias__", random_string())
+        return obj
 
     def __init_subclass__(cls) -> None:
-        cls.__label__ = camelcase(cls.__name__)
+        setattr(cls, "__label__", camelcase(cls.__name__))
 
         Registry.add_node_label(cls)
 
