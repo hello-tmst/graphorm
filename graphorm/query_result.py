@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 
 from prettytable import PrettyTable

@@ -14,10 +14,10 @@ def test_get_graph(graph):
         pass
 
     graph.add_node(
-        page_node_0 := Page(**{
-            "path": "0",
-            "parsed": False,
-        })
+        page_node_0 := Page(
+            path="0",
+            parsed=False
+        )
     )
 
     graph.flush()
@@ -25,10 +25,10 @@ def test_get_graph(graph):
     graph.update_node(page_node_0, {"parsed": True})
 
     graph.add_node(
-        page_node_1 := Page(**{
-            "path": "1",
-            "parsed": False,
-        })
+        page_node_1 := Page(
+            path="1",
+            parsed=False
+        )
     )
 
     graph.add_edge(Linked(page_node_0, page_node_1))
@@ -38,3 +38,5 @@ def test_get_graph(graph):
     result = graph.query(
         "MATCH (p:page) WHERE indegree(p) >= 0 AND p.parsed = False RETURN p, indegree(p) AS degree ORDER BY degree DESC LIMIT 20"
     )
+
+    # logging.info(result.result_set[0][0])

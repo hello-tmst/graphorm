@@ -11,10 +11,10 @@ def test_update_graph(graph):
         pass
 
     graph.add_node(
-        page_node_0 := Page(**{
-            "path": "0",
-            "parsed": False,
-        })
+        page_node_0 := Page(
+            path="0",
+            parsed=False
+        )
     )
 
     graph.flush()
@@ -22,10 +22,10 @@ def test_update_graph(graph):
     graph.update_node(page_node_0, {"parsed": True})
 
     graph.add_node(
-        page_node_1 := Page(**{
-            "path": "1",
-            "parsed": False,
-        })
+        page_node_1 := Page(
+            path="1",
+            parsed=False
+        )
     )
 
     graph.add_edge(Linked(page_node_0, page_node_1))

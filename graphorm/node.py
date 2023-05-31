@@ -14,11 +14,12 @@ class CommonNode(Common):
         if _id:
             self.__id__ = _id
 
+        self.__alias__ = random_string()
+
         for key, value in data.items():
             setattr(self, key, value)
 
     def __init_subclass__(cls) -> None:
-        cls.__alias__ = random_string()
         cls.__label__ = camelcase(cls.__name__)
 
         Registry.add_node_label(cls)
