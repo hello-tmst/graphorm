@@ -81,8 +81,8 @@ class Graph:
         """
         Adds a node to the graph.
         """
-        # if self.query("MATCH " + node.__str_pk__() + " RETURN 1").result_set:
-        #     return 1
+        if self.query("MATCH " + node.__str_pk__() + " RETURN 1").result_set:
+            return 1
         if node.alias is None:
             node.alias = random_string()
         self.nodes[node.alias] = node
