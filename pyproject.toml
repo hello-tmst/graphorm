@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "graphorm"
+version = "0.1.0"
+description = ""
+authors = ["ed4b816e <ed4b816e@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+redis = "^4.5.5"
+stringcase = "^1.2.0"
+prettytable = "^3.7.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.3.1"
+pytest-mock = "^3.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
