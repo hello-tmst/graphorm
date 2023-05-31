@@ -1,5 +1,3 @@
-import logging
-
 from stringcase import camelcase
 
 from .registry import Registry

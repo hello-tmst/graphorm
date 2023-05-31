@@ -1,5 +1,3 @@
-import logging
-
 import redis
 
 from .query_result import QueryResult

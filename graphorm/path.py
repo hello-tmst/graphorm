@@ -9,7 +9,7 @@ class Path:
 
         self._nodes = nodes
         self._edges = edges
-        self.append_type = Node
+        self.append_type = CommonNode
 
     @classmethod
     def new_empty_path(cls):
@@ -43,14 +43,14 @@ class Path:
         if not isinstance(node, self.append_type):
             raise AssertionError("Add Edge before adding Node")
         self._nodes.append(node)
-        self.append_type = Edge
+        self.append_type = CommonEdge
         return self
 
     def add_edge(self, edge):
         if not isinstance(edge, self.append_type):
             raise AssertionError("Add Node before adding Edge")
         self._edges.append(edge)
-        self.append_type = Node
+        self.append_type = CommonNode
         return self
 
     def __eq__(self, other):
