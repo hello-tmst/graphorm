@@ -55,7 +55,7 @@ class Node(Common):
         if self.__dict__:
             res += ", ".join(
                 f"{self.__alias__}.{k}={str(quote_string(v))}"
-                for k, v in sorted(self.__dict__.items())
+                for k, v in sorted(self.__dict__.items()) if v is not None
             )
         return res
 

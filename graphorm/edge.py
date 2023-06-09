@@ -40,7 +40,7 @@ class Edge(Common):
         res += ":" + self.__relation__
         if self.__dict__:
             props = ",".join(
-                key + ":" + str(quote_string(val)) for key, val in sorted(self.__dict__.items())
+                f"{key}:{quote_string(val)}" for key, val in sorted(self.__dict__.items()) if v is not None
             )
             res += "{" + props + "}"
         res += "]->"
