@@ -1,3 +1,5 @@
+import logging
+
 import redis
 
 from .query_result import QueryResult
@@ -77,16 +79,25 @@ class Graph:
             propertie = self._properties[idx]
         return propertie
 
-    def add_node(self, node):
+    def add_node(self, node, update: bool = False):
         """
         Adds a node to the graph.
         """
-        if self.query("MATCH " + node.__str_pk__() + " RETURN 1").result_set:
-            return 1
-        if node.alias is None:
-            node.alias = random_string()
+        if update:
+            pass
+        elif _node := self.get_node(node):
+            node = _node
         self.nodes[node.alias] = node
-        return 0
+
+    def get_node(self, node):
+        if node.alias in self.nodes:
+            return self.nodes[node.alias]
+        else:
+            result = self.query(f"MATCH {node.__str_pk__()} RETURN {node.alias}").result_set
+            if len(result) > 0:
+                _node = result[0][0]
+                _node.set_alias(node.alias)
+                return _node
 
     def update_node(self, node, properties):
         """
@@ -102,9 +113,10 @@ class Graph:
         """
         Adds an edge to the graph.
         """
-        if not (edge.src_node.alias in self.nodes and edge.dst_node.alias in self.nodes):
-            raise AssertionError("Both edge's end must be in the graph")
-
+        if edge.src_node.alias not in self.nodes:
+            self.add_node(edge.src_node)
+        if edge.dst_node.alias not in self.nodes:
+            self.add_node(edge.dst_node)
         self.edges.append(edge)
 
     def commit(self):

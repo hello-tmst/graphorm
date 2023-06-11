@@ -12,6 +12,8 @@ from .utils import quote_string, random_string
 class Node(Common):
     __slots__ = {"__alias__", "__label__", "__primary_key__"}
 
+    __labels__ = None
+
     def __new__(cls, /, *, _id: int = None, **kwargs) -> Common:
         obj = super().__new__(cls, **kwargs)
 
@@ -23,6 +25,9 @@ class Node(Common):
         setattr(cls, "__label__", camelcase(cls.__name__))
 
         Registry.add_node_label(cls)
+
+    def set_alias(self, alias: str) -> None:
+        setattr(self, "__alias__", alias)
 
     @property
     def alias(self) -> str:
@@ -37,8 +42,10 @@ class Node(Common):
 
     def __str_pk__(self) -> str:
         res = "("
-        res += self.__alias__
-        res += f":{self.__label__}"
+        res += f"{self.__alias__}:{self.__label__}"
+        if self.__labels__:
+            res += ":"
+            res += ":".join(self.__labels__)
         if isinstance(self.__primary_key__, str):
             pk = self.__primary_key__
             res += "{" + f"{pk}:{str(quote_string(self.__dict__[pk]))}" + "}"

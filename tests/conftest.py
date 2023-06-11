@@ -36,4 +36,4 @@ def graph():
     G = Graph("test", redis.Redis())
     G.create()
     yield G
-    G.delete()
+    # G.delete()
