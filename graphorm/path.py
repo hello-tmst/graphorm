@@ -1,5 +1,9 @@
+from logging import getLogger
+
 from .edge import Edge
 from .node import Node
+
+logger = getLogger(__file__)
 
 
 class Path:

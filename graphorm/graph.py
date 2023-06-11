@@ -1,11 +1,11 @@
-import logging
-
 import redis
+from logging import getLogger
 
 from .query_result import QueryResult
 from .utils import quote_string
-from .utils import random_string
 from .utils import stringify_param_value
+
+logger = getLogger(__file__)
 
 
 class Graph:
@@ -104,10 +104,7 @@ class Graph:
         Updates a node to the graph.
         """
         node.update(properties)
-
-        if node.alias is None:
-            node.alias = random_string()
-        self.nodes[node.alias] = node
+        self.add_node(node, update=True)
 
     def add_edge(self, edge):
         """

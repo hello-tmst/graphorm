@@ -1,8 +1,12 @@
+from logging import getLogger
+
 from stringcase import camelcase
 from .registry import Registry
 from .utils import quote_string
 from .node import Node
 from .common import Common
+
+logger = getLogger(__file__)
 
 
 class Edge(Common):

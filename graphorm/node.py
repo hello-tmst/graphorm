@@ -1,14 +1,13 @@
-import logging
-
+from logging import getLogger
 from stringcase import camelcase
-from dataclasses import dataclass
 
 from .registry import Registry
-from .common import Common, _init_fn
+from .common import Common
 from .utils import quote_string, random_string
 
+logger = getLogger(__file__)
 
-@dataclass
+
 class Node(Common):
     __slots__ = {"__alias__", "__label__", "__primary_key__"}
 
