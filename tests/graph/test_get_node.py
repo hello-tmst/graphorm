@@ -13,6 +13,4 @@ def test_get_node(graph):
 
     graph.flush()
 
-    node = graph.get_node(node)
-
-    logging.info(node)
+    assert hash(node) == hash(graph.get_node(node))

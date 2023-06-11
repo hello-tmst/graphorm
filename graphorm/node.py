@@ -1,3 +1,4 @@
+import json
 from logging import getLogger
 from stringcase import camelcase
 
@@ -83,3 +84,6 @@ class Node(Common):
             return False
 
         return True
+
+    def __hash__(self) -> int:
+        return hash((self.label, json.dumps(self.__dict__)))
