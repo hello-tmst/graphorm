@@ -15,6 +15,12 @@ class Node(Common):
     __labels__ = None
 
     def __new__(cls, /, *, _id: int = None, **kwargs) -> Common:
+        """
+        Create new instance of Node.
+
+        :param _id:
+        :param kwargs:
+        """
         obj = super().__new__(cls, **kwargs)
 
         setattr(obj, "__id__", _id)
@@ -27,6 +33,12 @@ class Node(Common):
         Registry.add_node_label(cls)
 
     def set_alias(self, alias: str) -> None:
+        """
+        Set Node alias.
+
+        :param alias:
+        :return:
+        """
         setattr(self, "__alias__", alias)
 
     @property
@@ -37,32 +49,51 @@ class Node(Common):
     def label(self) -> str:
         return self.__label__
 
+    @property
+    def labels(self) -> str:
+        return self.__labels__
+
+    @property
+    def properties(self) -> dict:
+        return self.__dict__
+
     def merge(self) -> str:
         return "MERGE " + str(self)
 
     def __str_pk__(self) -> str:
+        """
+        Generate primary key of Node instance.
+
+        :return:
+        """
         res = "("
-        res += f"{self.__alias__}:{self.__label__}"
-        if self.__labels__:
+        res += f"{self.alias}:{self.label}"
+        if self.labels:
             res += ":"
-            res += ":".join(self.__labels__)
+            res += ":".join(self.labels)
         if isinstance(self.__primary_key__, str):
             pk = self.__primary_key__
-            res += "{" + f"{pk}:{str(quote_string(self.__dict__[pk]))}" + "}"
+            res += "{" + f"{pk}:{str(quote_string(self.properties[pk]))}" + "}"
         elif isinstance(self.__primary_key__, list):
             res += "{"
-            res += ",".join(f"{pk}:{str(quote_string(self.__dict__[pk]))}" for pk in self.__primary_key__)
+            res += ",".join(f"{pk}:{str(quote_string(self.properties[pk]))}" for pk in self.__primary_key__)
             res += "}"
         res += ")"
         return res
 
     def __str__(self) -> str:
+        """
+        Generate Node instance insertion constraint.
+
+        :return:
+        """
+
         res = self.__str_pk__()
         res += " SET "
-        if self.__dict__:
+        if self.properties:
             res += ", ".join(
-                f"{self.__alias__}.{k}={str(quote_string(v))}"
-                for k, v in sorted(self.__dict__.items()) if v is not None
+                f"{self.alias}.{k}={str(quote_string(v))}"
+                for k, v in sorted(self.properties.items()) if v is not None
             )
         return res
 
@@ -76,14 +107,14 @@ class Node(Common):
             return False
 
         # Quick check for number of properties.
-        if len(self.__dict__) != len(rhs.properties):
+        if len(self.properties) != len(rhs.properties):
             return False
 
         # Compare properties.
-        if self.__dict__ != rhs.properties:
+        if self.properties != rhs.properties:
             return False
 
         return True
 
     def __hash__(self) -> int:
-        return hash((self.label, json.dumps(self.__dict__)))
+        return hash((self.label, json.dumps(self.properties)))

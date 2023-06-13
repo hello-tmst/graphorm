@@ -4,6 +4,8 @@ from logging import getLogger
 from .query_result import QueryResult
 from .utils import quote_string
 from .utils import stringify_param_value
+from .node import Node
+from .edge import Edge
 
 logger = getLogger(__file__)
 
@@ -44,7 +46,7 @@ class Graph:
             self._labels[i] = l[0]
 
     def _refresh_attributes(self):
-        props = self.propertyKeys()
+        props = self.property_keys()
 
         # Unpack data.
         self._properties = [None] * len(props)
@@ -53,9 +55,10 @@ class Graph:
 
     def get_label(self, idx):
         """
-        Returns a label by it's index
-        Args:
-            idx: The index of the label
+        Returns a label by it's index.
+
+        :param idx: The index of the label
+        :return:
         """
         try:
             label = self._labels[idx]
@@ -67,9 +70,10 @@ class Graph:
 
     def get_property(self, idx):
         """
-        Returns a property by it's index
-        Args:
-            idx: The index of the property
+        Returns a property by it's index.
+
+        :param idx: The index of the property
+        :return:
         """
         try:
             propertie = self._properties[idx]
@@ -79,36 +83,53 @@ class Graph:
             propertie = self._properties[idx]
         return propertie
 
-    def add_node(self, node, update: bool = False):
+    def add_node(self, node: Node, update: bool = False):
         """
         Adds a node to the graph.
+
+        :param node:
+        :param update:
+        :return:
         """
-        if update:
-            pass
-        elif _node := self.get_node(node):
-            node = _node
-        self.nodes[node.alias] = node
-
-    def get_node(self, node):
-        if node.alias in self.nodes:
-            return self.nodes[node.alias]
+        if self.get_node(node):
+            if update:
+                self.nodes[node.alias] = node
+                return 1
+            return 0
         else:
-            result = self.query(f"MATCH {node.__str_pk__()} RETURN {node.alias}").result_set
-            if len(result) > 0:
-                _node = result[0][0]
-                _node.set_alias(node.alias)
-                return _node
+            self.nodes[node.alias] = node
+            return 1
 
-    def update_node(self, node, properties):
+    def get_node(self, node: Node) -> Node | None:
+        """
+        Get node from the graph.
+
+        :param node: The instance of node
+        :return: Node, if it in the graph, else None
+        """
+        result = self.query(f"MATCH {node.__str_pk__()} RETURN {node.alias}").result_set
+        if len(result) > 0:
+            _node = result[0][0]
+            _node.set_alias(node.alias)
+            return _node
+
+    def update_node(self, node: Node, properties: dict):
         """
         Updates a node to the graph.
+
+        :param node:
+        :param properties:
+        :return:
         """
         node.update(properties)
         self.add_node(node, update=True)
 
-    def add_edge(self, edge):
+    def add_edge(self, edge: Edge) -> None:
         """
         Adds an edge to the graph.
+
+        :param edge:
+        :return:
         """
         if edge.src_node.alias not in self.nodes:
             self.add_node(edge.src_node)
@@ -119,6 +140,8 @@ class Graph:
     def commit(self):
         """
         Create entire graph.
+
+        :return:
         """
         if len(self.nodes) == 0 and len(self.edges) == 0:
             return None
@@ -131,7 +154,7 @@ class Graph:
 
     def flush(self):
         """
-        Commit the graph and reset the edges and nodes to zero length
+        Commit the graph and reset the edges and nodes to zero length.
         """
         self.commit()
         self.nodes = {}
@@ -213,5 +236,5 @@ class Graph:
     def labels(self):
         return self.call_procedure("db.labels", read_only=True).result_set
 
-    def propertyKeys(self):
+    def property_keys(self):
         return self.call_procedure("db.propertyKeys", read_only=True).result_set

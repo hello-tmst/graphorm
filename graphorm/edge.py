@@ -1,3 +1,4 @@
+import json
 from logging import getLogger
 
 from stringcase import camelcase
@@ -41,10 +42,10 @@ class Edge(Common):
 
         # Edge
         res += "-["
-        res += ":" + self.__relation__
-        if self.__dict__:
+        res += ":" + self.relation
+        if self.properties:
             props = ",".join(
-                f"{k}:{quote_string(v)}" for k, v in sorted(self.__dict__.items()) if v is not None
+                f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
             )
             res += "{" + props + "}"
         res += "]->"
@@ -56,6 +57,10 @@ class Edge(Common):
             res += "()"
 
         return res
+
+    @property
+    def properties(self) -> dict:
+        return self.__dict__
 
     def merge(self):
         return "MERGE " + str(self)
@@ -77,11 +82,14 @@ class Edge(Common):
             return False
 
         # Quick check for number of properties.
-        if len(self.__dict__) != len(rhs.properties):
+        if len(self.properties) != len(rhs.properties):
             return False
 
         # Compare properties.
-        if self.__dict__ != rhs.properties:
+        if self.properties != rhs.properties:
             return False
 
         return True
+
+    def __hash__(self) -> int:
+        return hash((self.relation, self.src_node, self.dst_node, json.dumps(self.properties)))

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "graphorm"
-version = "0.1.7"
+version = "0.1.8"
 description = ""
 authors = ["ed4b816e <ed4b816e@gmail.com>"]
 readme = "README.md"
