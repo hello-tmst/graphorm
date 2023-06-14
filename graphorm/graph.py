@@ -26,7 +26,7 @@ class Graph:
             self.redis_con = redis.Redis(host, port, password=password)
 
         self.nodes = {}
-        self.edges = []
+        self.edges = {}
         self._labels = []  # List of node labels.
         self._properties = []  # List of properties.
         self._relationshipTypes = []  # List of relation types.
@@ -38,11 +38,11 @@ class Graph:
         self._relationshipTypes = []
 
     def _refresh_labels(self):
-        lbls = self.labels()
+        labels = self.labels()
 
         # Unpack data.
-        self._labels = [None] * len(lbls)
-        for i, l in enumerate(lbls):
+        self._labels = [None] * len(labels)
+        for i, l in enumerate(labels):
             self._labels[i] = l[0]
 
     def _refresh_attributes(self):
@@ -53,7 +53,7 @@ class Graph:
         for i, p in enumerate(props):
             self._properties[i] = p[0]
 
-    def get_label(self, idx):
+    def get_label(self, idx: int):
         """
         Returns a label by it's index.
 
@@ -68,7 +68,7 @@ class Graph:
             label = self._labels[idx]
         return label
 
-    def get_property(self, idx):
+    def get_property(self, idx: int):
         """
         Returns a property by it's index.
 
@@ -76,14 +76,14 @@ class Graph:
         :return:
         """
         try:
-            propertie = self._properties[idx]
+            prop = self._properties[idx]
         except IndexError:
             # Refresh properties.
             self._refresh_attributes()
-            propertie = self._properties[idx]
-        return propertie
+            prop = self._properties[idx]
+        return prop
 
-    def add_node(self, node: Node, update: bool = False):
+    def add_node(self, node: Node, update: bool = False) -> int:
         """
         Adds a node to the graph.
 
@@ -113,7 +113,7 @@ class Graph:
             _node.set_alias(node.alias)
             return _node
 
-    def update_node(self, node: Node, properties: dict):
+    def update_node(self, node: Node, properties: dict) -> None:
         """
         Updates a node to the graph.
 
@@ -135,30 +135,46 @@ class Graph:
             self.add_node(edge.src_node)
         if edge.dst_node.alias not in self.nodes:
             self.add_node(edge.dst_node)
-        self.edges.append(edge)
+        self.edges[edge.alias] = edge
 
-    def commit(self):
+    def get_edge(self, edge: Edge) -> Edge | None:
+        """
+        Get node from the graph.
+
+        :param edge: The instance of node
+        :return: Edge, if it in the graph, else None
+        """
+        result = self.query(f"MATCH {edge.src_node.__str_pk__()}-{edge.__str_pk__()}->{edge.dst_node.__str_pk__()} "
+                            f"RETURN {edge.relation}").result_set
+        if len(result) > 0:
+            _edge = result[0][0]
+            _edge.set_alias(edge.alias)
+            return _edge
+
+    def commit(self) -> QueryResult | None:
         """
         Create entire graph.
 
-        :return:
+        :return: QueryResult | None
         """
         if len(self.nodes) == 0 and len(self.edges) == 0:
             return None
 
         query = ""
         query += " ".join(node.merge() for node in self.nodes.values()) + " "
-        query += " ".join(edge.merge() for edge in self.edges)
+        query += " ".join(edge.merge() for edge in self.edges.values())
 
         return self.query(query)
 
-    def flush(self):
+    def flush(self) -> None:
         """
         Commit the graph and reset the edges and nodes to zero length.
+
+        :return: None
         """
         self.commit()
-        self.nodes = {}
-        self.edges = []
+        self.nodes.clear()
+        self.edges.clear()
 
     @staticmethod
     def _build_params_header(params):
@@ -170,25 +186,32 @@ class Graph:
             params_header += str(key) + "=" + stringify_param_value(value) + " "
         return params_header
 
-    def create(self, timeout=None):
+    def create(self, timeout: int = None) -> QueryResult:
+        """
+
+        :param timeout:
+        :return: QueryResult
+        """
         return self.query("return 0", timeout=timeout)
 
     def delete(self):
         """
         Deletes graph.
+
+        :return:
         """
         self._clear_schema()
         return self.redis_con.execute_command("GRAPH.DELETE", self.name)
 
-    def query(self, q, params=None, timeout=None, read_only=False):
+    def query(self, q, params=None, timeout: int = None, read_only: bool = False) -> QueryResult:
         """
         Executes a query against the graph.
 
-        Args:
-            q: the query
-            params: query parameters
-            timeout: maximum runtime for read queries in milliseconds
-            read_only: executes a readonly query if set to True
+        :param q: the query
+        :param params: query parameters
+        :param timeout: maximum runtime for read queries in milliseconds
+        :param read_only: executes a readonly query if set to True
+        :return:
         """
 
         # maintain original 'q'
@@ -223,7 +246,7 @@ class Graph:
                 return self.query(q, params, timeout, read_only=False)
             raise e
 
-    def call_procedure(self, procedure, *args, read_only=False, **kwagrs):
+    def call_procedure(self, procedure, *args, read_only: bool = False, **kwagrs) -> QueryResult:
         args = [quote_string(arg) for arg in args]
         q = "CALL {}({})".format(procedure, ",".join(args))
 

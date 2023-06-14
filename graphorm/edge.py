@@ -3,7 +3,7 @@ from logging import getLogger
 
 from stringcase import camelcase
 from .registry import Registry
-from .utils import quote_string
+from .utils import quote_string, random_string
 from .node import Node
 from .common import Common
 
@@ -11,7 +11,7 @@ logger = getLogger(__file__)
 
 
 class Edge(Common):
-    __slots__ = {"__relation__", "src_node", "dst_node"}
+    __slots__ = {"__alias__", "__relation__", "src_node", "dst_node"}
 
     def __new__(cls, src_node, dst_node, /, *, _id: int = None, **kwargs) -> Common:
         obj = super().__new__(cls, **kwargs)
@@ -20,6 +20,7 @@ class Edge(Common):
             raise ValueError("Both src_node & dst_node must be provided")
 
         setattr(obj, "__id__", _id)
+        setattr(obj, "__alias__", random_string())
         setattr(obj, "src_node", src_node)
         setattr(obj, "dst_node", dst_node)
         return obj
@@ -29,9 +30,33 @@ class Edge(Common):
 
         Registry.add_edge_relation(cls)
 
+    def set_alias(self, alias: str) -> None:
+        """
+        Set Node alias.
+
+        :param alias:
+        :return:
+        """
+        setattr(self, "__alias__", alias)
+
+    @property
+    def alias(self) -> str:
+        return self.__alias__
+
     @property
     def relation(self) -> str:
         return self.__relation__
+
+    def __str_pk__(self) -> str:
+        """
+        Generate primary key of Node instance.
+
+        :return:
+        """
+        res = "["
+        res += f"{self.alias}:{self.relation}"
+        res += "]"
+        return res
 
     def __str__(self):
         # Source node.
@@ -42,7 +67,7 @@ class Edge(Common):
 
         # Edge
         res += "-["
-        res += ":" + self.relation
+        res += f"{self.alias}:{self.relation}"
         if self.properties:
             props = ",".join(
                 f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None

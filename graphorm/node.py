@@ -75,9 +75,8 @@ class Node(Common):
             pk = self.__primary_key__
             res += "{" + f"{pk}:{str(quote_string(self.properties[pk]))}" + "}"
         elif isinstance(self.__primary_key__, list):
-            res += "{"
-            res += ",".join(f"{pk}:{str(quote_string(self.properties[pk]))}" for pk in self.__primary_key__)
-            res += "}"
+            props = ",".join(f"{pk}:{str(quote_string(self.properties[pk]))}" for pk in self.__primary_key__)
+            res += "{" + props + "}"
         res += ")"
         return res
 
