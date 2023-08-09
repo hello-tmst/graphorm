@@ -1,3 +1,4 @@
+import inspect
 import builtins
 from abc import ABCMeta
 from typing import Any, Callable
@@ -19,9 +20,8 @@ class CommonMetaclass(ABCMeta):
             namespace["__annotations__"] = base_annotations
             cls: type[Common] = super().__new__(mcs, cls_name, bases, namespace, **kwargs)  # type: ignore
             setattr(cls, "__init__", _init_fn(cls))
-            # cls.__doc__ = (cls.__name__ +
-            #                str(inspect.signature(cls)).replace(' -> None', ''))
-            # abc.update_abstractmethods(cls)
+            cls.__doc__ = (cls.__name__ +
+                           str(inspect.signature(cls)).replace(' -> None', ''))
             return cls
         else:
             _base_class_defined = True

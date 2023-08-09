@@ -1,6 +1,3 @@
-import logging
-
-
 def test_get_node(graph):
     from graphorm import Node
 
