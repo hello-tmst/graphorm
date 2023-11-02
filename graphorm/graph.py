@@ -19,7 +19,7 @@ class Graph:
             name: string that represents the name of the graph
             redis_con: connection to Redis
         """
-        self.name = name  # Graph key
+        self.name = name.replace("-", "")  # Graph key
         if redis_con is not None:
             self.redis_con = redis_con
         else:
