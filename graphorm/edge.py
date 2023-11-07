@@ -13,7 +13,7 @@ logger = getLogger(__file__)
 class Edge(Common):
     __slots__ = {"__alias__", "__relation__", "src_node", "dst_node"}
 
-    def __new__(cls, src_node, dst_node, /, *, _id: int = None, **kwargs) -> Common:
+    def __new__(cls, src_node: Node, dst_node: Node, /, *, _id: int = None, **kwargs) -> Common:
         obj = super().__new__(cls, **kwargs)
 
         if src_node is None or dst_node is None:

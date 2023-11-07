@@ -7,13 +7,13 @@ logger = getLogger(__file__)
 
 
 class Path:
-    def __init__(self, nodes, edges):
+    def __init__(self, nodes: list[Node], edges: list[Edge]):
         if not (isinstance(nodes, list) and isinstance(edges, list)):
             raise TypeError("nodes and edges must be list")
 
         self._nodes = nodes
         self._edges = edges
-        self.append_type = Node
+        self.append_type = Node | Edge
 
     @classmethod
     def new_empty_path(cls):
@@ -43,14 +43,14 @@ class Path:
     def nodes_count(self):
         return len(self._nodes)
 
-    def add_node(self, node):
+    def add_node(self, node: Node):
         if not isinstance(node, self.append_type):
             raise AssertionError("Add Edge before adding Node")
         self._nodes.append(node)
         self.append_type = Edge
         return self
 
-    def add_edge(self, edge):
+    def add_edge(self, edge: Edge):
         if not isinstance(edge, self.append_type):
             raise AssertionError("Add Node before adding Edge")
         self._edges.append(edge)

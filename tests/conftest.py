@@ -1,6 +1,9 @@
 import os
 
 import pytest
+from pytest_redis import factories
+
+db_conn = factories.redis_noproc()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -28,12 +31,13 @@ def set_test_environments(session_mocker):
         },
     )
 
-@pytest.fixture(scope="function")
-def graph():
-    from graphorm.graph import Graph
-    import redis
 
-    G = Graph("test", redis.Redis())
+@pytest.fixture(scope="function")
+def graph(db_conn):
+    from graphorm.graph import Graph
+    import uuid
+
+    G = Graph(str(uuid.uuid4()), host=db_conn.host, port=db_conn.port)
     G.create()
     yield G
     G.delete()

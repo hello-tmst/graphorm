@@ -10,9 +10,7 @@ logger = getLogger(__file__)
 
 
 class Node(Common):
-    __slots__ = {"__alias__", "__label__", "__primary_key__"}
-
-    __labels__ = None
+    __slots__ = {"__alias__", "__primary_key__", "__labels__"}
 
     def __new__(cls, /, *, _id: int = None, **kwargs) -> Common:
         """
@@ -28,7 +26,7 @@ class Node(Common):
         return obj
 
     def __init_subclass__(cls) -> None:
-        setattr(cls, "__label__", camelcase(cls.__name__))
+        setattr(cls, "__labels__", {camelcase(cls.__name__)})
 
         Registry.add_node_label(cls)
 
@@ -46,11 +44,7 @@ class Node(Common):
         return self.__alias__
 
     @property
-    def label(self) -> str:
-        return self.__label__
-
-    @property
-    def labels(self) -> str:
+    def labels(self) -> set[str]:
         return self.__labels__
 
     @property
@@ -67,7 +61,7 @@ class Node(Common):
         :return:
         """
         res = "("
-        res += f"{self.alias}:{self.label}"
+        res += f"{self.alias}"
         if self.labels:
             res += ":"
             res += ":".join(self.labels)
@@ -102,7 +96,7 @@ class Node(Common):
             return False
 
         # Label should match.
-        if self.label != rhs.label:
+        if set(self.labels) ^ set(rhs.labels):
             return False
 
         # Quick check for number of properties.
@@ -116,4 +110,4 @@ class Node(Common):
         return True
 
     def __hash__(self) -> int:
-        return hash((self.label, json.dumps(self.properties)))
+        return hash((frozenset(self.labels), json.dumps(self.properties)))

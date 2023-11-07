@@ -1,5 +1,3 @@
-import logging
-
 def test_fill_graph(graph):
     from graphorm import Node, Edge
 

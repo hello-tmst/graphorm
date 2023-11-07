@@ -1,9 +1,5 @@
-import redis
 from logging import getLogger
 
-from .query_result import QueryResult
-from .utils import quote_string
-from .utils import stringify_param_value
 from .node import Node
 from .edge import Edge
 
@@ -11,47 +7,20 @@ logger = getLogger(__file__)
 
 
 class Graph:
-    def __init__(self, name, redis_con=None, host="localhost", port=6379, password=None):
+    def __init__(self, name: str):
         """
-        Create a new graph.
 
-        Args:
-            name: string that represents the name of the graph
-            redis_con: connection to Redis
+        :param name:
+        :return:
         """
-        self.name = name.replace("-", "")  # Graph key
-        if redis_con is not None:
-            self.redis_con = redis_con
-        else:
-            self.redis_con = redis.Redis(host, port, password=password)
+        self.name = name  # Graph key
 
         self.nodes = {}
         self.edges = {}
         self._labels = []  # List of node labels.
-        self._properties = []  # List of properties.
-        self._relationshipTypes = []  # List of relation types.
+        self._property_keys = []  # List of property keys.
+        self._relationship_types = []  # List of relationship types.
         self.version = 0  # Graph version
-
-    def _clear_schema(self):
-        self._labels = []
-        self._properties = []
-        self._relationshipTypes = []
-
-    def _refresh_labels(self):
-        labels = self.labels()
-
-        # Unpack data.
-        self._labels = [None] * len(labels)
-        for i, l in enumerate(labels):
-            self._labels[i] = l[0]
-
-    def _refresh_attributes(self):
-        props = self.property_keys()
-
-        # Unpack data.
-        self._properties = [None] * len(props)
-        for i, p in enumerate(props):
-            self._properties[i] = p[0]
 
     def get_label(self, idx: int):
         """
@@ -79,50 +48,18 @@ class Graph:
             prop = self._properties[idx]
         except IndexError:
             # Refresh properties.
-            self._refresh_attributes()
+            self._refresh_property_keys()
             prop = self._properties[idx]
         return prop
 
-    def add_node(self, node: Node, update: bool = False) -> int:
+    def add_node(self, node: Node) -> None:
         """
         Adds a node to the graph.
 
         :param node:
-        :param update:
         :return:
         """
-        if self.get_node(node):
-            if update:
-                self.nodes[node.alias] = node
-                return 1
-            return 0
-        else:
-            self.nodes[node.alias] = node
-            return 1
-
-    def get_node(self, node: Node) -> Node | None:
-        """
-        Get node from the graph.
-
-        :param node: The instance of node
-        :return: Node, if it in the graph, else None
-        """
-        result = self.query(f"MATCH {node.__str_pk__()} RETURN {node.alias}").result_set
-        if len(result) > 0:
-            _node = result[0][0]
-            _node.set_alias(node.alias)
-            return _node
-
-    def update_node(self, node: Node, properties: dict) -> None:
-        """
-        Updates a node to the graph.
-
-        :param node:
-        :param properties:
-        :return:
-        """
-        node.update(properties)
-        self.add_node(node, update=True)
+        self.nodes[node.alias] = node
 
     def add_edge(self, edge: Edge) -> None:
         """
@@ -137,127 +74,26 @@ class Graph:
             self.add_node(edge.dst_node)
         self.edges[edge.alias] = edge
 
-    def get_edge(self, edge: Edge) -> Edge | None:
-        """
-        Get node from the graph.
+    def _refresh_labels(self) -> list[str]:
+        return self._call_procedure("db.labels")
 
-        :param edge: The instance of node
-        :return: Edge, if it in the graph, else None
-        """
-        result = self.query(f"MATCH {edge.src_node.__str_pk__()}-{edge.__str_pk__()}->{edge.dst_node.__str_pk__()} "
-                            f"RETURN {edge.relation}").result_set
-        if len(result) > 0:
-            _edge = result[0][0]
-            _edge.set_alias(edge.alias)
-            return _edge
+    def _refresh_property_keys(self) -> list[str]:
+        return self._call_procedure("db.propertyKeys")
 
-    def commit(self) -> QueryResult | None:
-        """
-        Create entire graph.
+    def _refresh_relationship_types(self) -> list[str]:
+        return self._call_procedure("db.relationshipTypes")
 
-        :return: QueryResult | None
-        """
-        if len(self.nodes) == 0 and len(self.edges) == 0:
-            return None
+    def _call_procedure(self, q: str):
+        return self._unpack(self.call_procedure(q, read_only=True).result_set)
 
-        query = ""
-        query += " ".join(node.merge() for node in self.nodes.values()) + " "
-        query += " ".join(edge.merge() for edge in self.edges.values())
-
-        return self.query(query)
-
-    def flush(self) -> None:
-        """
-        Commit the graph and reset the edges and nodes to zero length.
-
-        :return: None
-        """
-        self.commit()
-        self.nodes.clear()
-        self.edges.clear()
+    def _clear_schema(self):
+        self._labels = []
+        self._properties = []
+        self._relationship_types = []
 
     @staticmethod
-    def _build_params_header(params):
-        if not isinstance(params, dict):
-            raise TypeError("'params' must be a dict")
-        # Header starts with "CYPHER"
-        params_header = "CYPHER "
-        for key, value in params.items():
-            params_header += str(key) + "=" + stringify_param_value(value) + " "
-        return params_header
-
-    def create(self, timeout: int = None) -> QueryResult:
-        """
-
-        :param timeout:
-        :return: QueryResult
-        """
-        return self.query("return 0", timeout=timeout)
-
-    def delete(self):
-        """
-        Deletes graph.
-
-        :return:
-        """
-        self._clear_schema()
-        return self.redis_con.execute_command("GRAPH.DELETE", self.name)
-
-    def query(self, q, params=None, timeout: int = None, read_only: bool = False) -> QueryResult:
-        """
-        Executes a query against the graph.
-
-        :param q: the query
-        :param params: query parameters
-        :param timeout: maximum runtime for read queries in milliseconds
-        :param read_only: executes a readonly query if set to True
-        :return:
-        """
-
-        # maintain original 'q'
-        query = q
-
-        # handle query parameters
-        if params is not None:
-            query = self._build_params_header(params) + query
-
-        # construct query command
-        # ask for compact result-set format
-        # specify known graph version
-        cmd = "GRAPH.RO_QUERY" if read_only else "GRAPH.QUERY"
-        # command = [cmd, self.name, query, "--compact", "version", self.version]
-        command = [cmd, self.name, query, "--compact"]
-
-        # include timeout is specified
-        if timeout:
-            if not isinstance(timeout, int):
-                raise Exception("Timeout argument must be a positive integer")
-            command += ["timeout", timeout]
-
-        # issue query
-        try:
-            response = self.redis_con.execute_command(*command)
-            return QueryResult(self, response)
-        except redis.exceptions.ResponseError as e:
-            if "wrong number of arguments" in str(e):
-                print("Note: RedisGraph Python requires server version 2.2.8 or above")
-            if "unknown command" in str(e) and read_only:
-                # `GRAPH.RO_QUERY` is unavailable in older versions.
-                return self.query(q, params, timeout, read_only=False)
-            raise e
-
-    def call_procedure(self, procedure, *args, read_only: bool = False, **kwagrs) -> QueryResult:
-        args = [quote_string(arg) for arg in args]
-        q = "CALL {}({})".format(procedure, ",".join(args))
-
-        y = kwagrs.get("y", None)
-        if y:
-            q += " YIELD %s" % ",".join(y)
-
-        return self.query(q, read_only=read_only)
-
-    def labels(self):
-        return self.call_procedure("db.labels", read_only=True).result_set
-
-    def property_keys(self):
-        return self.call_procedure("db.propertyKeys", read_only=True).result_set
+    def _unpack(result_set: list[list[str]]) -> list[str]:
+        result: list[str | None] = [None] * len(result_set)
+        for i, l in enumerate(result_set):
+            result[i] = l[0]
+        return result
