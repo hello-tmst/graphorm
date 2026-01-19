@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from logging import getLogger
 from stringcase import camelcase
 
@@ -10,9 +11,9 @@ logger = getLogger(__file__)
 
 
 class Node(Common):
-    __slots__ = {"__alias__", "__primary_key__", "__labels__"}
+    __slots__ = {"__graph__", "__relations__", "__alias__", "__primary_key__", "__labels__"}
 
-    def __new__(cls, /, *, _id: int = None, **kwargs) -> Common:
+    def __new__(cls, _id: int = None, **kwargs) -> Common:
         """
         Create new instance of Node.
 
@@ -48,11 +49,16 @@ class Node(Common):
         return self.__labels__
 
     @property
+    def graph(self):
+        return self.__graph__
+
+    @property
+    def relations(self):
+        return self.__relations__
+
+    @property
     def properties(self) -> dict:
         return self.__dict__
-
-    def merge(self) -> str:
-        return "MERGE " + str(self)
 
     def __str_pk__(self) -> str:
         """
@@ -61,10 +67,7 @@ class Node(Common):
         :return:
         """
         res = "("
-        res += f"{self.alias}"
-        if self.labels:
-            res += ":"
-            res += ":".join(self.labels)
+        res += ":".join([self.alias, *self.labels])
         if isinstance(self.__primary_key__, str):
             pk = self.__primary_key__
             res += "{" + f"{pk}:{str(quote_string(self.properties[pk]))}" + "}"
@@ -90,21 +93,29 @@ class Node(Common):
             )
         return res
 
-    def __eq__(self, rhs):
+    def merge(self) -> str:
+        """
+        Generate MERGE query for the node.
+
+        :return: MERGE query string
+        """
+        return "MERGE " + str(self)
+
+    def __eq__(self, other: Any):
         # Quick positive check, if both IDs are set.
-        if self.id is not None and rhs.id is not None and self.id != rhs.id:
+        if self.id is not None and other.id is not None and self.id != other.id:
             return False
 
         # Label should match.
-        if set(self.labels) ^ set(rhs.labels):
+        if set(self.labels) ^ set(other.labels):
             return False
 
         # Quick check for number of properties.
-        if len(self.properties) != len(rhs.properties):
+        if len(self.properties) != len(other.properties):
             return False
 
         # Compare properties.
-        if self.properties != rhs.properties:
+        if self.properties != other.properties:
             return False
 
         return True

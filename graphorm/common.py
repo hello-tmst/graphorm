@@ -3,6 +3,7 @@ import builtins
 from abc import ABCMeta
 from typing import Any, Callable
 
+
 _base_class_defined = False
 
 

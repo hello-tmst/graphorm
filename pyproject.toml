@@ -1,15 +1,4 @@
 [tool.poetry]
-name = "graphorm"
-version = "0.1.11"
-description = ""
-authors = ["ed4b816e <ed4b816e@gmail.com>"]
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = ">=3.10"
-redis = ">=5.0.1"
-stringcase = ">=1.2.0"
-prettytable = ">=3.8.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.3.2"
@@ -17,5 +6,14 @@ pytest-mock = "^3.10.0"
 pytest-redis = "^3.0.2"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "graphorm"
+description = ""
+version = "0.1.11"
+readme = "README.md"
+authors = [{name = "ed4b816e", email = "ed4b816e@gmail.com"}]
+requires-python = '>=3.10'
+dependencies = ['redis (>=5.0.1)', 'stringcase (>=1.2.0)', 'prettytable (>=3.8.0)']
