@@ -1,7 +1,7 @@
 from .edge import *
 from .node import *
 from .path import *
-from .graph import *
+from .graph import Graph, Transaction
 from .query_result import *
 from .drivers.base import Driver
 from .exceptions import (
@@ -28,12 +28,14 @@ from .expression import (
     indegree,
     outdegree,
 )
+from .relationship import Relationship
 
 
 __all__ = [
     "Node",
     "Edge",
     "Graph",
+    "Transaction",
     "Path",
     "QueryResult",
     "Driver",
@@ -59,4 +61,5 @@ __all__ = [
     "max",
     "indegree",
     "outdegree",
+    "Relationship",
 ]

@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, List, Any
 
 import redis
 
@@ -208,8 +208,8 @@ class Graph:
     def query(
         self,
         q: str,
-        params: dict = None,
-        timeout: int = None,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
         read_only: bool = False,
     ) -> QueryResult:
         """
@@ -224,7 +224,7 @@ class Graph:
         result = self._driver.query(CMD.QUERY, self._name, q, params, timeout, read_only, graph=self)
         return result
     
-    def execute(self, stmt, read_only: bool = False, timeout: int = None) -> QueryResult:
+    def execute(self, stmt: "Select", read_only: bool = False, timeout: Optional[int] = None) -> QueryResult:
         """
         Execute a Select statement.
         
@@ -395,15 +395,141 @@ class Graph:
             return found_edge
         return None
 
-    def create(self, timeout: int = None) -> QueryResult:
+    def create(self, timeout: Optional[int] = None) -> QueryResult:
         """
         Create a new graph in the database.
+        Automatically creates indexes for all Node classes with __indexes__ attribute.
 
         :param timeout: Maximum runtime in milliseconds
         :return: QueryResult object
         """
-        return self._driver.query(CMD.QUERY, self._name, "RETURN 0", timeout=timeout)
+        result = self._driver.query(CMD.QUERY, self._name, "RETURN 0", timeout=timeout)
+        
+        # Automatically create indexes for all Node classes with __indexes__ attribute
+        self.create_all_indexes()
+        
+        return result
+    
+    def create_all_indexes(self) -> None:
+        """
+        Create all indexes defined in Node classes with __indexes__ attribute.
+        """
+        from .registry import Registry
+        
+        # Get all registered node classes
+        for label, node_class in Registry.__dict__.items():
+            if isinstance(node_class, type) and hasattr(node_class, '__indexes__'):
+                indexes = node_class.__indexes__
+                if isinstance(indexes, list):
+                    for prop_name in indexes:
+                        try:
+                            node_class.create_index(prop_name, self)
+                        except Exception as e:
+                            logger.warning(f"Failed to create index on {label}.{prop_name}: {e}")
+    
+    def drop_index(self, label: str, property_name: str) -> QueryResult:
+        """
+        Drop an index on a property for a node label.
+        
+        :param label: Node label
+        :param property_name: Property name
+        :return: QueryResult object
+        """
+        query = f"DROP INDEX ON :{label}({property_name})"
+        return self.query(query)
+    
+    def list_indexes(self) -> List[Dict[str, Any]]:
+        """
+        List all indexes in the graph.
+        
+        :return: List of index information dictionaries
+        """
+        # RedisGraph/FalkorDB doesn't have a direct way to list indexes
+        # This would require calling a procedure if available
+        # For now, return empty list as placeholder
+        # TODO: Implement if RedisGraph provides index listing procedure
+        return []
 
+    def bulk_upsert(self, node_class: type[Node], data: List[Dict[str, Any]], 
+                    batch_size: int = 1000) -> Optional[QueryResult]:
+        """
+        Bulk upsert nodes using UNWIND for efficient insertion.
+        
+        :param node_class: Node class to upsert
+        :param data: List of property dictionaries
+        :param batch_size: Number of nodes per batch (default: 1000)
+        :return: QueryResult object from last batch
+        """
+        if not data:
+            return None
+        
+        # Get label for the node class
+        if hasattr(node_class, '__labels__'):
+            label = list(node_class.__labels__)[0]
+        elif hasattr(node_class, '__label__'):
+            label = node_class.__label__
+        else:
+            label = node_class.__name__
+        
+        # Get primary key
+        if hasattr(node_class, '__primary_key__'):
+            pk = node_class.__primary_key__
+            if isinstance(pk, str):
+                pk_fields = [pk]
+            else:
+                pk_fields = pk
+        else:
+            pk_fields = []
+        
+        last_result = None
+        
+        # Process in batches
+        for i in range(0, len(data), batch_size):
+            batch = data[i:i + batch_size]
+            
+            # Build UNWIND query
+            # Format: UNWIND $nodes AS n MERGE (p:Label {pk1: n.pk1, pk2: n.pk2}) SET p.prop1 = n.prop1, ...
+            
+            # Build MERGE pattern with primary key
+            if pk_fields:
+                merge_pattern_parts = []
+                for pk_field in pk_fields:
+                    merge_pattern_parts.append(f"{pk_field}: n.{pk_field}")
+                merge_pattern = "{" + ", ".join(merge_pattern_parts) + "}"
+            else:
+                # No primary key - use all properties for MERGE
+                merge_pattern = ""
+            
+            # Build SET clause for all properties
+            set_clauses = []
+            # Get all property names from first item in batch (assuming all have same structure)
+            if batch:
+                all_props = set(batch[0].keys())
+                # Exclude primary key fields from SET (they're in MERGE)
+                props_to_set = all_props - set(pk_fields)
+                for prop in sorted(props_to_set):
+                    set_clauses.append(f"p.{prop} = n.{prop}")
+            
+            # Build query
+            if pk_fields:
+                if set_clauses:
+                    query = f"UNWIND $nodes AS n MERGE (p:{label} {merge_pattern}) SET {', '.join(set_clauses)}"
+                else:
+                    query = f"UNWIND $nodes AS n MERGE (p:{label} {merge_pattern})"
+            else:
+                # No primary key - use CREATE with SET
+                if set_clauses:
+                    query = f"UNWIND $nodes AS n CREATE (p:{label}) SET {', '.join(set_clauses)}"
+                else:
+                    # No properties to set - just create nodes
+                    query = f"UNWIND $nodes AS n CREATE (p:{label})"
+            
+            # Execute with batch data as parameter
+            params = {"nodes": batch}
+            last_result = self.query(query, params=params)
+        
+        return last_result
+    
     def delete(self) -> QueryResult:
         """
         Delete the graph from the database.
@@ -412,9 +538,86 @@ class Graph:
         """
         return self._driver.query(CMD.DELETE, self._name)
 
+    def transaction(self) -> "Transaction":
+        """
+        Create a transaction context manager for grouping operations.
+        
+        :return: Transaction instance
+        """
+        return Transaction(self)
+    
     @staticmethod
     def _unpack(result_set: list[list[str]]) -> list[str]:
         result: list[str | None] = [None] * len(result_set)
         for i, l in enumerate(result_set):
             result[i] = l[0]
         return result
+
+
+class Transaction:
+    """
+    Transaction context manager for grouping graph operations.
+    
+    Automatically flushes changes when exiting the context (if no exception occurred).
+    """
+    
+    def __init__(self, graph: Graph):
+        """
+        Initialize transaction.
+        
+        :param graph: Graph instance
+        """
+        self.graph = graph
+        self._nodes: list[Node] = []
+        self._edges: list[Edge] = []
+    
+    def add_node(self, node: Node) -> "Transaction":
+        """
+        Add a node to the transaction.
+        
+        :param node: Node instance to add
+        :return: Self for chaining
+        """
+        self._nodes.append(node)
+        return self
+    
+    def add_edge(self, edge: Edge) -> "Transaction":
+        """
+        Add an edge to the transaction.
+        
+        :param edge: Edge instance to add
+        :return: Self for chaining
+        """
+        self._edges.append(edge)
+        return self
+    
+    def flush(self, batch_size: int = 50) -> QueryResult:
+        """
+        Flush all pending changes in the transaction.
+        
+        :param batch_size: Number of items to commit per batch
+        :return: QueryResult object
+        """
+        # Add nodes and edges to graph
+        for node in self._nodes:
+            self.graph.add_node(node)
+        for edge in self._edges:
+            self.graph.add_edge(edge)
+        
+        # Flush graph
+        result = self.graph.flush(batch_size=batch_size)
+        
+        # Clear transaction lists
+        self._nodes.clear()
+        self._edges.clear()
+        
+        return result
+    
+    def __enter__(self) -> "Transaction":
+        """Enter transaction context."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit transaction context, flush if no exception."""
+        if exc_type is None:
+            self.flush()

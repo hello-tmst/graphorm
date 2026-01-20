@@ -45,6 +45,68 @@ class Node(Common):
                 if not prop_name.startswith("__"):
                     # Create Property descriptor
                     setattr(cls, prop_name, Property(cls, prop_name))
+    
+    @classmethod
+    def _alias_classmethod(cls, name: str) -> type:
+        """
+        Create an aliased version of this Node class for use in queries.
+        
+        :param name: Alias name for the node in queries
+        :return: Aliased Node class with _alias attribute set
+        """
+        # Create a simple subclass with alias attribute
+        # __init_subclass__ will be called automatically, creating Property descriptors
+        class AliasedNode(cls):
+            _alias = name
+        
+        # Ensure __labels__ is copied
+        if hasattr(cls, '__labels__'):
+            AliasedNode.__labels__ = cls.__labels__
+        
+        # Set alias as class attribute
+        AliasedNode._alias = name
+        AliasedNode.__name__ = f"Aliased{cls.__name__}"
+        AliasedNode.__qualname__ = f"Aliased{cls.__qualname__}"
+        
+        # Property descriptors are automatically created in __init_subclass__
+        # with node_class=AliasedNode, so they should work correctly
+        # The Property.__get__ method will use the owner class (AliasedNode) and its _alias
+        
+        return AliasedNode
+    
+    class _AliasDescriptor:
+        """Descriptor that handles both classmethod and instance property for alias."""
+        def __get__(self, obj, owner):
+            if obj is None:
+                # Accessed on class - return the classmethod
+                return owner._alias_classmethod
+            else:
+                # Accessed on instance - return the instance's alias
+                return obj.__alias__
+    
+    alias = _AliasDescriptor()
+    
+    @classmethod
+    def create_index(cls, property_name: str, graph: "Graph") -> "QueryResult":
+        """
+        Create an index on a property for this Node class.
+        
+        :param property_name: Name of the property to index
+        :param graph: Graph instance to create the index on
+        :return: QueryResult object
+        """
+        from .query_result import QueryResult
+        
+        # Get label for this node class
+        if hasattr(cls, '__labels__'):
+            label = list(cls.__labels__)[0]
+        elif hasattr(cls, '__label__'):
+            label = cls.__label__
+        else:
+            label = cls.__name__
+        
+        query = f"CREATE INDEX ON :{label}({property_name})"
+        return graph.query(query)
 
     def set_alias(self, alias: str) -> None:
         """
@@ -54,10 +116,6 @@ class Node(Common):
         :return:
         """
         setattr(self, "__alias__", alias)
-
-    @property
-    def alias(self) -> str:
-        return self.__alias__
 
     @property
     def labels(self) -> set[str]:

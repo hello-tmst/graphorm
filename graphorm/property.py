@@ -47,11 +47,26 @@ class Property:
             prop = Property.__new__(Property)
             prop.node_class = owner
             prop.name = self.name
-            prop._alias = self._alias
+            # Use alias from owner class if it has one
+            if hasattr(owner, '_alias'):
+                prop._alias = owner._alias
+            else:
+                prop._alias = self._alias
             return prop
         else:
             # Accessed as instance attribute - return property value
-            return instance.properties.get(self.name)
+            # properties is a @property that returns a dict
+            props = instance.properties
+            if hasattr(props, 'get'):
+                return props.get(self.name)
+            elif hasattr(props, '__getitem__'):
+                try:
+                    return props[self.name]
+                except (KeyError, TypeError):
+                    return None
+            else:
+                # Fallback: try to get from __dict__
+                return getattr(instance, self.name, None)
     
     def __set__(self, instance: Any, value: Any) -> None:
         """

@@ -44,6 +44,46 @@ class Edge(Common):
                 if not prop_name.startswith("__"):
                     # Create Property descriptor
                     setattr(cls, prop_name, Property(cls, prop_name))
+    
+    @classmethod
+    def _alias_classmethod(cls, name: str) -> type:
+        """
+        Create an aliased version of this Edge class for use in queries.
+        
+        :param name: Alias name for the edge in queries
+        :return: Aliased Edge class with _alias attribute set
+        """
+        # Create a simple subclass with alias attribute
+        # __init_subclass__ will be called automatically, creating Property descriptors
+        class AliasedEdge(cls):
+            _alias = name
+        
+        # Ensure __relation__ is copied
+        if hasattr(cls, '__relation__'):
+            AliasedEdge.__relation__ = cls.__relation__
+        
+        # Set alias as class attribute
+        AliasedEdge._alias = name
+        AliasedEdge.__name__ = f"Aliased{cls.__name__}"
+        AliasedEdge.__qualname__ = f"Aliased{cls.__qualname__}"
+        
+        # Property descriptors are automatically created in __init_subclass__
+        # with node_class=AliasedEdge, so they should work correctly
+        # The Property.__get__ method will use the owner class (AliasedEdge) and its _alias
+        
+        return AliasedEdge
+    
+    class _AliasDescriptor:
+        """Descriptor that handles both classmethod and instance property for alias."""
+        def __get__(self, obj, owner):
+            if obj is None:
+                # Accessed on class - return the classmethod
+                return owner._alias_classmethod
+            else:
+                # Accessed on instance - return the instance's alias
+                return obj.__alias__
+    
+    alias = _AliasDescriptor()
 
     def set_alias(self, alias: str) -> None:
         """
@@ -53,10 +93,6 @@ class Edge(Common):
         :return:
         """
         setattr(self, "__alias__", alias)
-
-    @property
-    def alias(self) -> str:
-        return self.__alias__
 
     @property
     def relation(self) -> str:
