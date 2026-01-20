@@ -473,7 +473,11 @@ class Function:
                     return arg.to_cypher(alias_map=alias_map)
                 return arg.to_cypher()
             elif isinstance(arg, type):
-                # Node class - get alias from map or use default
+                # Node class - check if it's an aliased class first
+                if hasattr(arg, '_alias'):
+                    # Aliased class - use its alias
+                    return arg._alias
+                # Check alias map
                 if arg in alias_map:
                     return alias_map[arg]
                 # Use lowercase class name as default alias
