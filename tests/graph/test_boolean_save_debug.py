@@ -28,21 +28,21 @@ def test_debug_boolean_save(graph):
     graph.flush()
     
     # Query all pages
-    query_all = "MATCH (p:page) RETURN p"
+    query_all = "MATCH (p:Page) RETURN p"
     result_all = graph.query(query_all)
     print(f"\nAll pages after creation:")
     for node, in result_all.result_set:
         print(f"  {node.path}: parsed={node.parsed} (type: {type(node.parsed)})")
     
     # Query for false
-    query_false = "MATCH (p:page) WHERE p.parsed = false RETURN p"
+    query_false = "MATCH (p:Page) WHERE p.parsed = false RETURN p"
     result_false = graph.query(query_false)
     print(f"\nPages with parsed=false: {len(result_false.result_set)}")
     for node, in result_false.result_set:
         print(f"  {node.path}: parsed={node.parsed}")
     
     # Query for true
-    query_true = "MATCH (p:page) WHERE p.parsed = true RETURN p"
+    query_true = "MATCH (p:Page) WHERE p.parsed = true RETURN p"
     result_true = graph.query(query_true)
     print(f"\nPages with parsed=true: {len(result_true.result_set)}")
     for node, in result_true.result_set:

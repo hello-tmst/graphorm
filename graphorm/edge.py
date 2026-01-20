@@ -1,7 +1,6 @@
 import json
 from logging import getLogger
 
-from stringcase import camelcase
 from .registry import Registry
 from .utils import quote_string, random_string, format_cypher_value
 from .node import Node
@@ -26,8 +25,15 @@ class Edge(Common):
         return obj
 
     def __init_subclass__(cls) -> None:
-        setattr(cls, "__relation__", camelcase(cls.__name__))
-
+        # Check for explicit relation name, otherwise use class name as-is
+        if hasattr(cls, "__relation_name__"):
+            relation = cls.__relation_name__
+            if not relation or not isinstance(relation, str):
+                raise ValueError(f"__relation_name__ must be a non-empty string for class {cls.__name__}")
+        else:
+            relation = cls.__name__
+        
+        setattr(cls, "__relation__", relation)
         Registry.add_edge_relation(cls)
 
     def set_alias(self, alias: str) -> None:

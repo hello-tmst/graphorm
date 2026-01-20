@@ -16,7 +16,10 @@ version = "0.1.11"
 readme = "README.md"
 authors = [{name = "ed4b816e", email = "ed4b816e@gmail.com"}]
 requires-python = '>=3.10'
-dependencies = ['redis (>=5.0.1)', 'stringcase (>=1.2.0)', 'prettytable (>=3.8.0)']
+dependencies = [
+    'redis (>=5.0.1)',
+    'prettytable (>=3.8.0)',
+]
 
 [dependency-groups]
 dev = [

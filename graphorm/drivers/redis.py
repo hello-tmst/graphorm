@@ -143,7 +143,9 @@ class RedisDriver(Driver):
                                 f"Committing node in batch {batch_num}/{total_node_batches} "
                                 f"to graph {graph.name}: {query[:100]}..."
                             )
-                            last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                            item_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                            # Keep the last result for return value, but all queries are executed
+                            last_result = item_result
                     else:
                         # If batch_size is 0 or negative, join with semicolons (original behavior for compatibility)
                         query = " ".join(item.merge() for item in batch)

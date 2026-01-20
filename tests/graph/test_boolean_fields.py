@@ -129,7 +129,7 @@ def test_query_nodes_by_boolean_false(graph):
 
     # Query for unparsed pages
     query = """
-    MATCH (p:page)
+    MATCH (p:Page)
     WHERE p.parsed = false
     RETURN p
     """
@@ -164,7 +164,7 @@ def test_query_nodes_by_boolean_true(graph):
 
     # Query for parsed pages
     query = """
-    MATCH (p:page)
+    MATCH (p:Page)
     WHERE p.parsed = true
     RETURN p
     """
@@ -262,7 +262,7 @@ def test_boolean_field_in_query_after_update(graph):
 
     # Query should find it as unparsed
     query_unparsed = """
-    MATCH (p:page)
+    MATCH (p:Page)
     WHERE p.parsed = false AND p.path = '/test'
     RETURN p
     """
@@ -279,7 +279,7 @@ def test_boolean_field_in_query_after_update(graph):
 
     # Query should find it as parsed
     query_parsed = """
-    MATCH (p:page)
+    MATCH (p:Page)
     WHERE p.parsed = true AND p.path = '/test'
     RETURN p
     """
@@ -410,7 +410,7 @@ def test_update_node_via_query_result(graph):
 
     # Query for pages
     query = """
-    MATCH (p:page)
+    MATCH (p:Page)
     WHERE p.path = '/page1'
     RETURN p
     """

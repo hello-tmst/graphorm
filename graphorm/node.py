@@ -1,7 +1,6 @@
 import json
 from typing import Any
 from logging import getLogger
-from stringcase import camelcase
 
 from .registry import Registry
 from .common import Common
@@ -27,8 +26,15 @@ class Node(Common):
         return obj
 
     def __init_subclass__(cls) -> None:
-        setattr(cls, "__labels__", {camelcase(cls.__name__)})
-
+        # Check for explicit label, otherwise use class name as-is
+        if hasattr(cls, "__label__"):
+            label = cls.__label__
+            if not label or not isinstance(label, str):
+                raise ValueError(f"__label__ must be a non-empty string for class {cls.__name__}")
+        else:
+            label = cls.__name__
+        
+        setattr(cls, "__labels__", {label})
         Registry.add_node_label(cls)
 
     def set_alias(self, alias: str) -> None:

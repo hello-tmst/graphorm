@@ -46,7 +46,7 @@ def test_fill_graph(graph):
     assert graph.add_node(page_node_1) == 0
 
     result = graph.query(
-        "MATCH (p:page), (w:website) RETURN p, w"
+        "MATCH (p:Page), (w:Website) RETURN p, w"
     )
 
     # for packs in result.result_set:

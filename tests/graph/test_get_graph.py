@@ -36,7 +36,7 @@ def test_get_graph(graph):
     graph.flush()
 
     result = graph.query(
-        "MATCH (p:page) WHERE indegree(p) >= 0 AND p.parsed = False RETURN p, indegree(p) AS degree ORDER BY degree DESC LIMIT 20"
+        "MATCH (p:Page) WHERE indegree(p) >= 0 AND p.parsed = False RETURN p, indegree(p) AS degree ORDER BY degree DESC LIMIT 20"
     )
 
     # logging.info(result.result_set[0][0])
