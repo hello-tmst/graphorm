@@ -11,6 +11,22 @@ from .exceptions import (
     QueryExecutionError,
     ConnectionError,
 )
+from .select import select, aliased, Select
+from .property import Property
+from .expression import (
+    BinaryExpression,
+    AndExpression,
+    OrExpression,
+    OrderByExpression,
+    Function,
+    count,
+    sum,
+    avg,
+    min,
+    max,
+    indegree,
+    outdegree,
+)
 
 
 __all__ = [
@@ -25,4 +41,20 @@ __all__ = [
     "EdgeNotFoundError",
     "QueryExecutionError",
     "ConnectionError",
+    "select",
+    "aliased",
+    "Select",
+    "Property",
+    "BinaryExpression",
+    "AndExpression",
+    "OrExpression",
+    "OrderByExpression",
+    "Function",
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "indegree",
+    "outdegree",
 ]

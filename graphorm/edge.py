@@ -35,6 +35,15 @@ class Edge(Common):
         
         setattr(cls, "__relation__", relation)
         Registry.add_edge_relation(cls)
+        
+        # Create Property descriptors for all annotated properties
+        from .property import Property
+        if hasattr(cls, "__annotations__"):
+            for prop_name in cls.__annotations__:
+                # Skip internal attributes
+                if not prop_name.startswith("__"):
+                    # Create Property descriptor
+                    setattr(cls, prop_name, Property(cls, prop_name))
 
     def set_alias(self, alias: str) -> None:
         """

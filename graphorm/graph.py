@@ -223,6 +223,19 @@ class Graph:
         """
         result = self._driver.query(CMD.QUERY, self._name, q, params, timeout, read_only, graph=self)
         return result
+    
+    def execute(self, stmt, read_only: bool = False, timeout: int = None) -> QueryResult:
+        """
+        Execute a Select statement.
+        
+        :param stmt: Select statement object
+        :param read_only: Execute as read-only query if set to True
+        :param timeout: Maximum runtime for read queries in milliseconds
+        :return: QueryResult object
+        """
+        cypher = stmt.to_cypher()
+        params = stmt.get_params()
+        return self.query(cypher, params=params, read_only=read_only, timeout=timeout)
 
     def update_node(self, node: Node, properties: dict) -> QueryResult:
         """
