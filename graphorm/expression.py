@@ -240,11 +240,19 @@ class OrderByExpression:
         if alias_map is None:
             alias_map = {}
         
+        # Check if expression has a label (alias) - in ORDER BY, use only the alias
+        if hasattr(self.expression, '_label') and self.expression._label:
+            # Use only the alias in ORDER BY
+            return f"{self.expression._label} {self.direction}"
+        
         if hasattr(self.expression, 'to_cypher'):
             # Pass alias_map if expression supports it
             if hasattr(self.expression, 'name') or hasattr(self.expression, 'left'):
                 # Function or ArithmeticExpression
                 expr_str = self.expression.to_cypher(alias_map=alias_map)
+                # Remove " AS label" part if present (for ORDER BY we don't need it)
+                if " AS " in expr_str:
+                    expr_str = expr_str.split(" AS ")[0]
             else:
                 expr_str = self.expression.to_cypher()
         else:
