@@ -5,7 +5,7 @@ from stringcase import camelcase
 
 from .registry import Registry
 from .common import Common
-from .utils import quote_string, random_string
+from .utils import quote_string, random_string, format_cypher_value
 
 logger = getLogger(__file__)
 
@@ -88,7 +88,7 @@ class Node(Common):
         res += " SET "
         if self.properties:
             res += ", ".join(
-                f"{self.alias}.{k}={str(quote_string(v))}"
+                f"{self.alias}.{k}={format_cypher_value(v)}"
                 for k, v in sorted(self.properties.items()) if v is not None
             )
         return res

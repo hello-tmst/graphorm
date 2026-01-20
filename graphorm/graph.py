@@ -7,7 +7,7 @@ from .node import Node
 from .edge import Edge
 from .types import CMD
 from .query_result import QueryResult
-from .utils import quote_string
+from .utils import quote_string, format_cypher_value
 
 if TYPE_CHECKING:
     from graphorm.drivers.base import Driver
@@ -236,7 +236,8 @@ class Graph:
         set_clauses = []
         for key, value in properties.items():
             if value is not None:
-                set_clauses.append(f"{node.alias}.{key}={quote_string(value)}")
+                value_str = format_cypher_value(value)
+                set_clauses.append(f"{node.alias}.{key}={value_str}")
         
         if not set_clauses:
             raise ValueError("No properties to update")
