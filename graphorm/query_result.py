@@ -61,10 +61,19 @@ class QueryResult:
         self.header = []
         self.result_set = []
 
+        # Handle simple responses (like from GRAPH.DELETE command)
+        if not isinstance(response, list):
+            # Simple response (string, int, etc.) - create empty result structure
+            self.statistics = {}
+            return
+
         # incase of an error an exception will be raised
         self._check_for_errors(response)
 
-        if len(response) == 1:
+        if len(response) == 0:
+            # Empty response
+            self.statistics = {}
+        elif len(response) == 1:
             self.parse_statistics(response[0])
         else:
             # start by parsing statistics, matches the one we have
@@ -72,12 +81,14 @@ class QueryResult:
             self.parse_results(response)
 
     def _check_for_errors(self, response):
+        if len(response) == 0:
+            return
         if isinstance(response[0], ResponseError):
             error = response[0]
             raise error
 
         # If we encountered a run-time error, the last response element will be an exception.
-        if isinstance(response[-1], ResponseError):
+        if len(response) > 0 and isinstance(response[-1], ResponseError):
             raise response[-1]
 
     def parse_results(self, raw_result_set):

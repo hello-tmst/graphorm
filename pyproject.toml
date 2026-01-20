@@ -17,3 +17,10 @@ readme = "README.md"
 authors = [{name = "ed4b816e", email = "ed4b816e@gmail.com"}]
 requires-python = '>=3.10'
 dependencies = ['redis (>=5.0.1)', 'stringcase (>=1.2.0)', 'prettytable (>=3.8.0)']
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+    "pytest-redis>=3.1.3",
+]

@@ -41,32 +41,37 @@ class RedisDriver(Driver):
         :return: QueryResult
         """
 
-        # maintain original 'q'
-        query = q
+        # GRAPH.DELETE command has different syntax - only takes graph name
+        if cmd == CMD.DELETE:
+            command = [cmd, graph_name]
+        else:
+            # maintain original 'q'
+            query = q
 
-        # handle query parameters
-        if params is not None:
-            query = self._build_params_header(params) + query
+            # handle query parameters
+            if params is not None:
+                query = self._build_params_header(params) + query
 
-        # construct query command
-        # ask for compact result-set format
-        # specify known graph version
-        # command = [cmd, self.name, query, "--compact", "version", self.version]
-        match (cmd, read_only):
-            case (CMD.QUERY, True):
-                cmd = CMD.RO_QUERY
-        command = [cmd, graph_name, query, "--compact"]
+            # construct query command
+            # ask for compact result-set format
+            # specify known graph version
+            # command = [cmd, self.name, query, "--compact", "version", self.version]
+            match (cmd, read_only):
+                case (CMD.QUERY, True):
+                    cmd = CMD.RO_QUERY
+            command = [cmd, graph_name, query, "--compact"]
 
-        # include timeout is specified
-        if timeout:
-            if not isinstance(timeout, int):
-                raise QueryExecutionError("Timeout argument must be a positive integer")
-            command += ["timeout", timeout]
+            # include timeout is specified
+            if timeout:
+                if not isinstance(timeout, int):
+                    raise QueryExecutionError("Timeout argument must be a positive integer")
+                command += ["timeout", timeout]
 
         # issue query
         try:
             response = self.connection.execute_command(*command)
             # Pass graph if provided, otherwise pass self (for backward compatibility)
+            # QueryResult now handles simple responses (like from GRAPH.DELETE) correctly
             return QueryResult(graph if graph is not None else self, response)
         except redis.exceptions.ConnectionError as e:
             logger.error(f"Connection error while executing query: {e}")
