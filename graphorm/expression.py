@@ -230,18 +230,137 @@ class OrderByExpression:
         self.expression = expression
         self.direction = direction.upper()
     
-    def to_cypher(self) -> str:
+    def to_cypher(self, alias_map: Dict[Any, str] = None) -> str:
         """
         Generate Cypher string representation.
         
+        :param alias_map: Optional mapping of node classes to aliases
         :return: Cypher string
         """
+        if alias_map is None:
+            alias_map = {}
+        
         if hasattr(self.expression, 'to_cypher'):
-            expr_str = self.expression.to_cypher()
+            # Pass alias_map if expression supports it
+            if hasattr(self.expression, 'name') or hasattr(self.expression, 'left'):
+                # Function or ArithmeticExpression
+                expr_str = self.expression.to_cypher(alias_map=alias_map)
+            else:
+                expr_str = self.expression.to_cypher()
         else:
             expr_str = str(self.expression)
         
         return f"{expr_str} {self.direction}"
+
+
+class ArithmeticExpression:
+    """
+    Represents an arithmetic expression (left operator right).
+    
+    Example:
+        indegree(Page) + outdegree(Page)  # ArithmeticExpression
+    """
+    
+    def __init__(self, left: Any, operator: str, right: Any):
+        """
+        Initialize arithmetic expression.
+        
+        :param left: Left operand (Function, Property, or value)
+        :param operator: Arithmetic operator ("+", "-", "*", "/")
+        :param right: Right operand (Function, Property, or value)
+        """
+        self.left = left
+        self.operator = operator
+        self.right = right
+    
+    def __add__(self, other: Any) -> "ArithmeticExpression":
+        """Addition operator: +"""
+        return ArithmeticExpression(self, "+", other)
+    
+    def __sub__(self, other: Any) -> "ArithmeticExpression":
+        """Subtraction operator: -"""
+        return ArithmeticExpression(self, "-", other)
+    
+    def __mul__(self, other: Any) -> "ArithmeticExpression":
+        """Multiplication operator: *"""
+        return ArithmeticExpression(self, "*", other)
+    
+    def __truediv__(self, other: Any) -> "ArithmeticExpression":
+        """Division operator: /"""
+        return ArithmeticExpression(self, "/", other)
+    
+    def label(self, alias: str) -> "ArithmeticExpression":
+        """
+        Add label (alias) to arithmetic expression result.
+        
+        :param alias: Alias name
+        :return: ArithmeticExpression with label
+        """
+        self._label = alias
+        return self
+    
+    def desc(self) -> "OrderByExpression":
+        """DESC ordering for arithmetic expression."""
+        return OrderByExpression(self, "DESC")
+    
+    def asc(self) -> "OrderByExpression":
+        """ASC ordering for arithmetic expression."""
+        return OrderByExpression(self, "ASC")
+    
+    def __eq__(self, other: Any) -> "BinaryExpression":
+        """Equality operator: =="""
+        return BinaryExpression(self, "=", other)
+    
+    def __ne__(self, other: Any) -> "BinaryExpression":
+        """Inequality operator: <>"""
+        return BinaryExpression(self, "<>", other)
+    
+    def __lt__(self, other: Any) -> "BinaryExpression":
+        """Less than operator: <"""
+        return BinaryExpression(self, "<", other)
+    
+    def __le__(self, other: Any) -> "BinaryExpression":
+        """Less than or equal operator: <="""
+        return BinaryExpression(self, "<=", other)
+    
+    def __gt__(self, other: Any) -> "BinaryExpression":
+        """Greater than operator: >"""
+        return BinaryExpression(self, ">", other)
+    
+    def __ge__(self, other: Any) -> "BinaryExpression":
+        """Greater than or equal operator: >="""
+        return BinaryExpression(self, ">=", other)
+    
+    def to_cypher(self, alias_map: Dict[Any, str] = None) -> str:
+        """
+        Generate Cypher string representation.
+        
+        :param alias_map: Optional mapping of node classes to aliases
+        :return: Cypher string
+        """
+        if alias_map is None:
+            alias_map = {}
+        
+        def format_operand(operand: Any) -> str:
+            """Format operand for Cypher."""
+            if hasattr(operand, 'to_cypher'):
+                # Check if it's a Function that needs alias_map
+                if hasattr(operand, 'name'):  # It's a Function
+                    return operand.to_cypher(alias_map=alias_map)
+                # Other expression types
+                return operand.to_cypher()
+            else:
+                return str(operand)
+        
+        left_str = format_operand(self.left)
+        right_str = format_operand(self.right)
+        
+        result = f"{left_str} {self.operator} {right_str}"
+        
+        if hasattr(self, '_label'):
+            result += f" AS {self._label}"
+        
+        return result
 
 
 class Function:
@@ -272,16 +391,89 @@ class Function:
         self._label = alias
         return self
     
-    def to_cypher(self) -> str:
+    def __add__(self, other: Any) -> ArithmeticExpression:
+        """Addition operator: +"""
+        return ArithmeticExpression(self, "+", other)
+    
+    def __sub__(self, other: Any) -> ArithmeticExpression:
+        """Subtraction operator: -"""
+        return ArithmeticExpression(self, "-", other)
+    
+    def __mul__(self, other: Any) -> ArithmeticExpression:
+        """Multiplication operator: *"""
+        return ArithmeticExpression(self, "*", other)
+    
+    def __truediv__(self, other: Any) -> ArithmeticExpression:
+        """Division operator: /"""
+        return ArithmeticExpression(self, "/", other)
+    
+    def __radd__(self, other: Any) -> ArithmeticExpression:
+        """Right addition operator: +"""
+        return ArithmeticExpression(other, "+", self)
+    
+    def __rsub__(self, other: Any) -> ArithmeticExpression:
+        """Right subtraction operator: -"""
+        return ArithmeticExpression(other, "-", self)
+    
+    def __rmul__(self, other: Any) -> ArithmeticExpression:
+        """Right multiplication operator: *"""
+        return ArithmeticExpression(other, "*", self)
+    
+    def __rtruediv__(self, other: Any) -> ArithmeticExpression:
+        """Right division operator: /"""
+        return ArithmeticExpression(other, "/", self)
+    
+    def __eq__(self, other: Any) -> "BinaryExpression":
+        """Equality operator: =="""
+        return BinaryExpression(self, "=", other)
+    
+    def __ne__(self, other: Any) -> "BinaryExpression":
+        """Inequality operator: <>"""
+        return BinaryExpression(self, "<>", other)
+    
+    def __lt__(self, other: Any) -> "BinaryExpression":
+        """Less than operator: <"""
+        return BinaryExpression(self, "<", other)
+    
+    def __le__(self, other: Any) -> "BinaryExpression":
+        """Less than or equal operator: <="""
+        return BinaryExpression(self, "<=", other)
+    
+    def __gt__(self, other: Any) -> "BinaryExpression":
+        """Greater than operator: >"""
+        return BinaryExpression(self, ">", other)
+    
+    def __ge__(self, other: Any) -> "BinaryExpression":
+        """Greater than or equal operator: >="""
+        return BinaryExpression(self, ">=", other)
+    
+    def to_cypher(self, alias_map: Dict[Any, str] = None) -> str:
         """
         Generate Cypher string representation.
         
+        :param alias_map: Optional mapping of node classes to aliases
         :return: Cypher string
         """
-        args_str = ", ".join(
-            arg.to_cypher() if hasattr(arg, 'to_cypher') else str(arg)
-            for arg in self.args
-        )
+        if alias_map is None:
+            alias_map = {}
+        
+        def format_arg(arg: Any) -> str:
+            """Format function argument for Cypher."""
+            if hasattr(arg, 'to_cypher'):
+                # Property or other expression with to_cypher
+                if hasattr(arg, 'to_cypher') and alias_map:
+                    return arg.to_cypher(alias_map=alias_map)
+                return arg.to_cypher()
+            elif isinstance(arg, type):
+                # Node class - get alias from map or use default
+                if arg in alias_map:
+                    return alias_map[arg]
+                # Use lowercase class name as default alias
+                return arg.__name__.lower()
+            else:
+                return str(arg)
+        
+        args_str = ", ".join(format_arg(arg) for arg in self.args)
         result = f"{self.name}({args_str})"
         
         if hasattr(self, '_label'):

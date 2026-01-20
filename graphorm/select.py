@@ -208,9 +208,25 @@ class Select:
         
         if self._return_clauses:
             return_parts: List[str] = []
+            # Build alias map for functions
+            alias_map: Dict[Any, str] = {}
+            for entity in self._entities:
+                if isinstance(entity, type):
+                    if hasattr(entity, '_alias'):
+                        alias_map[entity] = entity._alias
+                        if hasattr(entity, '__bases__') and len(entity.__bases__) > 0:
+                            base_class = entity.__bases__[0]
+                            alias_map[base_class] = entity._alias
+                    else:
+                        alias_map[entity] = self._get_alias_for_entity(entity)
+            
             for expr in self._return_clauses:
                 if hasattr(expr, 'to_cypher'):
-                    return_parts.append(expr.to_cypher())
+                    # Pass alias_map to functions
+                    if hasattr(expr, 'name'):  # It's a Function
+                        return_parts.append(expr.to_cypher(alias_map=alias_map))
+                    else:
+                        return_parts.append(expr.to_cypher())
                 elif isinstance(expr, type):
                     # Node class or aliased class - get alias
                     if hasattr(expr, '_alias'):
@@ -232,9 +248,22 @@ class Select:
         # ORDER BY clause (must come after RETURN)
         if self._order_by_clauses:
             order_parts: List[str] = []
+            # Build alias map for order by expressions
+            alias_map: Dict[Any, str] = {}
+            for entity in self._entities:
+                if isinstance(entity, type):
+                    if hasattr(entity, '_alias'):
+                        alias_map[entity] = entity._alias
+                        if hasattr(entity, '__bases__') and len(entity.__bases__) > 0:
+                            base_class = entity.__bases__[0]
+                            alias_map[base_class] = entity._alias
+                    else:
+                        alias_map[entity] = self._get_alias_for_entity(entity)
+            
             for expr in self._order_by_clauses:
                 if hasattr(expr, 'to_cypher'):
-                    order_parts.append(expr.to_cypher())
+                    # Pass alias_map to OrderByExpression
+                    order_parts.append(expr.to_cypher(alias_map=alias_map))
                 else:
                     order_parts.append(str(expr))
             parts.append("ORDER BY " + ", ".join(order_parts))
