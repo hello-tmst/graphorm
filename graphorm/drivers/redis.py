@@ -91,6 +91,8 @@ class RedisDriver(Driver):
     def commit(self, graph, items: list[Common] = None, batch_size: int = 50) -> QueryResult | None:
         """
         Commit changes to the graph in batches to avoid overwhelming FalkorDB.
+        
+        Nodes are committed first, then edges, to ensure all nodes exist before creating edges.
 
         :param graph: Graph instance
         :param items: List of nodes and edges to commit. If None, uses graph's nodes and edges
@@ -108,35 +110,65 @@ class RedisDriver(Driver):
             query = " ".join(item.merge() for item in items)
             return self.query(CMD.QUERY, graph.name, query, graph=graph)
 
-        # Commit in batches
-        last_result = None
-        total_batches = (len(items) + batch_size - 1) // batch_size
+        # Separate nodes and edges - edges need nodes to exist first
+        nodes = []
+        edges = []
+        for item in items:
+            # Check if item is an edge (has src_node attribute) or node (has labels attribute)
+            if hasattr(item, 'src_node') and hasattr(item, 'dst_node'):
+                edges.append(item)
+            else:
+                nodes.append(item)
         
-        for i in range(0, len(items), batch_size):
-            batch = items[i:i + batch_size]
-            batch_num = (i // batch_size) + 1
-            
-            try:
-                query = " ".join(item.merge() for item in batch)
-                logger.debug(
-                    f"Committing batch {batch_num}/{total_batches} "
-                    f"({len(batch)} items) to graph {graph.name}"
-                )
-                last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
-            except Exception as e:
-                logger.error(
-                    f"Error committing batch {batch_num}/{total_batches} "
-                    f"({len(batch)} items) to graph {graph.name}: {e}",
-                    exc_info=True
-                )
-                # Continue with next batch instead of failing completely
-                # This allows partial success
-                continue
+        # Commit nodes first in batches
+        last_result = None
+        if nodes:
+            total_node_batches = (len(nodes) + batch_size - 1) // batch_size
+            for i in range(0, len(nodes), batch_size):
+                batch = nodes[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                
+                try:
+                    query = " ".join(item.merge() for item in batch)
+                    logger.debug(
+                        f"Committing nodes batch {batch_num}/{total_node_batches} "
+                        f"({len(batch)} items) to graph {graph.name}"
+                    )
+                    last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                except Exception as e:
+                    logger.error(
+                        f"Error committing nodes batch {batch_num}/{total_node_batches} "
+                        f"({len(batch)} items) to graph {graph.name}: {e}",
+                        exc_info=True
+                    )
+                    continue
+        
+        # Then commit edges in batches
+        if edges:
+            total_edge_batches = (len(edges) + batch_size - 1) // batch_size
+            for i in range(0, len(edges), batch_size):
+                batch = edges[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                
+                try:
+                    query = " ".join(item.merge() for item in batch)
+                    logger.debug(
+                        f"Committing edges batch {batch_num}/{total_edge_batches} "
+                        f"({len(batch)} items) to graph {graph.name}"
+                    )
+                    last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                except Exception as e:
+                    logger.error(
+                        f"Error committing edges batch {batch_num}/{total_edge_batches} "
+                        f"({len(batch)} items) to graph {graph.name}: {e}",
+                        exc_info=True
+                    )
+                    continue
         
         if last_result is None and len(items) > 0:
             logger.warning(
                 f"All batches failed for graph {graph.name}. "
-                f"Total items: {len(items)}, batch_size: {batch_size}"
+                f"Total items: {len(items)} (nodes: {len(nodes)}, edges: {len(edges)}), batch_size: {batch_size}"
             )
         
         return last_result
