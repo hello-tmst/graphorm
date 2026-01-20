@@ -88,13 +88,14 @@ class RedisDriver(Driver):
             logger.error(f"Unexpected error during query execution: {e}", exc_info=True)
             raise QueryExecutionError(f"Unexpected error: {e}") from e
 
-    def commit(self, graph, items: list[Common] = None) -> QueryResult | None:
+    def commit(self, graph, items: list[Common] = None, batch_size: int = 50) -> QueryResult | None:
         """
-        Commit changes to the graph.
+        Commit changes to the graph in batches to avoid overwhelming FalkorDB.
 
         :param graph: Graph instance
         :param items: List of nodes and edges to commit. If None, uses graph's nodes and edges
-        :return: QueryResult | None
+        :param batch_size: Number of items to commit per batch (default: 50). Set to 0 or negative to disable batching.
+        :return: QueryResult | None (returns result of last batch)
         """
         if items is None:
             items = list(graph.nodes.values()) + list(graph.edges.values())
@@ -102,9 +103,43 @@ class RedisDriver(Driver):
         if len(items) == 0:
             return None
 
-        query = " ".join(item.merge() for item in items)
+        # If batch_size is 0 or negative, commit all at once (original behavior)
+        if batch_size <= 0:
+            query = " ".join(item.merge() for item in items)
+            return self.query(CMD.QUERY, graph.name, query, graph=graph)
 
-        return self.query(CMD.QUERY, graph.name, query, graph=graph)
+        # Commit in batches
+        last_result = None
+        total_batches = (len(items) + batch_size - 1) // batch_size
+        
+        for i in range(0, len(items), batch_size):
+            batch = items[i:i + batch_size]
+            batch_num = (i // batch_size) + 1
+            
+            try:
+                query = " ".join(item.merge() for item in batch)
+                logger.debug(
+                    f"Committing batch {batch_num}/{total_batches} "
+                    f"({len(batch)} items) to graph {graph.name}"
+                )
+                last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+            except Exception as e:
+                logger.error(
+                    f"Error committing batch {batch_num}/{total_batches} "
+                    f"({len(batch)} items) to graph {graph.name}: {e}",
+                    exc_info=True
+                )
+                # Continue with next batch instead of failing completely
+                # This allows partial success
+                continue
+        
+        if last_result is None and len(items) > 0:
+            logger.warning(
+                f"All batches failed for graph {graph.name}. "
+                f"Total items: {len(items)}, batch_size: {batch_size}"
+            )
+        
+        return last_result
 
     @staticmethod
     def _build_params_header(params) -> str:

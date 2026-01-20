@@ -191,14 +191,15 @@ class Graph:
             relation = self._relationship_types[idx]
         return relation
 
-    def flush(self) -> QueryResult:
+    def flush(self, batch_size: int = 50) -> QueryResult:
         """
-        Flush all pending changes to the database.
+        Flush all pending changes to the database in batches.
 
+        :param batch_size: Number of items to commit per batch (default: 50). Set to 0 or negative to disable batching.
         :return: QueryResult object
         """
         items = list(self._nodes.values()) + list(self._edges.values())
-        result = self._driver.commit(self, items)
+        result = self._driver.commit(self, items, batch_size=batch_size)
         # Optionally clear local cache after successful flush
         # self._nodes.clear()
         # self._edges.clear()
