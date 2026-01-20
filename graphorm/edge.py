@@ -59,9 +59,9 @@ class Edge(Common):
         return res
 
     def __str__(self):
-        # Source node.
+        # Source node - use __str_pk__() to create proper MERGE pattern with primary key
         if isinstance(self.src_node, Node):
-            res = f"({str(self.src_node.alias)})"
+            res = f"({self.src_node.__str_pk__()})"
         else:
             res = "()"
 
@@ -75,9 +75,9 @@ class Edge(Common):
             res += "{" + props + "}"
         res += "]->"
 
-        # Dest node.
+        # Dest node - use __str_pk__() to create proper MERGE pattern with primary key
         if isinstance(self.dst_node, Node):
-            res += f"({str(self.dst_node.alias)})"
+            res += f"({self.dst_node.__str_pk__()})"
         else:
             res += "()"
 
