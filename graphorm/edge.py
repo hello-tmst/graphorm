@@ -60,8 +60,9 @@ class Edge(Common):
 
     def __str__(self):
         # Source node - use __str_pk__() to create proper MERGE pattern with primary key
+        # Note: __str_pk__() already returns pattern with parentheses, so don't add extra ones
         if isinstance(self.src_node, Node):
-            res = f"({self.src_node.__str_pk__()})"
+            res = self.src_node.__str_pk__()
         else:
             res = "()"
 
@@ -76,8 +77,9 @@ class Edge(Common):
         res += "]->"
 
         # Dest node - use __str_pk__() to create proper MERGE pattern with primary key
+        # Note: __str_pk__() already returns pattern with parentheses, so don't add extra ones
         if isinstance(self.dst_node, Node):
-            res += f"({self.dst_node.__str_pk__()})"
+            res += self.dst_node.__str_pk__()
         else:
             res += "()"
 
