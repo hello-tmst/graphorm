@@ -59,10 +59,9 @@ class Edge(Common):
         return res
 
     def __str__(self):
-        # Source node - use __str_pk__() to create proper MERGE pattern with primary key
-        # Note: __str_pk__() already returns pattern with parentheses, so don't add extra ones
+        # Source node - use alias for reference (nodes should already exist)
         if isinstance(self.src_node, Node):
-            res = self.src_node.__str_pk__()
+            res = f"({self.src_node.alias})"
         else:
             res = "()"
 
@@ -76,10 +75,9 @@ class Edge(Common):
             res += "{" + props + "}"
         res += "]->"
 
-        # Dest node - use __str_pk__() to create proper MERGE pattern with primary key
-        # Note: __str_pk__() already returns pattern with parentheses, so don't add extra ones
+        # Dest node - use alias for reference (nodes should already exist)
         if isinstance(self.dst_node, Node):
-            res += self.dst_node.__str_pk__()
+            res += f"({self.dst_node.alias})"
         else:
             res += "()"
 
@@ -90,6 +88,24 @@ class Edge(Common):
         return self.__dict__
 
     def merge(self):
+        # Use MERGE with primary key patterns for nodes to ensure nodes are found/created correctly
+        if isinstance(self.src_node, Node) and isinstance(self.dst_node, Node):
+            # Use primary key patterns to find/create nodes
+            src_pattern = self.src_node.__str_pk__()
+            dst_pattern = self.dst_node.__str_pk__()
+            
+            # Create edge pattern
+            edge_pattern = f"-[{self.alias}:{self.relation}"
+            if self.properties:
+                props = ",".join(
+                    f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
+                )
+                edge_pattern += "{" + props + "}"
+            edge_pattern += "]->"
+            
+            # MERGE will find nodes by primary key or create them if they don't exist
+            # Then create the edge if it doesn't exist
+            return f"MERGE {src_pattern}{edge_pattern}{dst_pattern}"
         return "MERGE " + str(self)
 
     def __eq__(self, rhs):
