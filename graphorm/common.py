@@ -3,6 +3,8 @@ import builtins
 from abc import ABCMeta
 from typing import Any, Callable
 
+from .properties import PropertiesManager, DefaultPropertiesValidator
+
 
 _base_class_defined = False
 
@@ -30,26 +32,110 @@ class CommonMetaclass(ABCMeta):
 
 
 class Common(metaclass=CommonMetaclass):
-    __slots__ = {"__id__", "__dict__"}
+    __slots__ = {"__id__", "__dict__", "_properties_manager"}
 
     def __new__(cls, **data: Any) -> "Common":
         obj = super().__new__(cls)
-        setattr(obj, "__dict__", cls._validate(data))
+        validated_data = cls._validate(data)
+        setattr(obj, "__dict__", validated_data)
+        
+        # Initialize PropertiesManager after __dict__ is set
+        obj._init_properties_manager()
         return obj
+
+    def _init_properties_manager(self) -> None:
+        """Initialize PropertiesManager from current __dict__."""
+        # Define internal keys that should be excluded from properties
+        internal_keys = {'__id__', '__alias__', '__graph__', '__relations__', 
+                        '__primary_key__', '__labels__', '__relation__', 
+                        'src_node', 'dst_node', '_properties_manager'}
+        
+        # Extract only user-defined properties from __dict__
+        properties_data = {
+            k: v for k, v in self.__dict__.items() 
+            if k not in internal_keys
+        }
+        
+        # Create validator with class annotations
+        validator = DefaultPropertiesValidator(self.__class__.__annotations__)
+        
+        # Initialize PropertiesManager
+        properties_manager = PropertiesManager(
+            initial_data=properties_data,
+            validator=validator,
+            internal_keys=internal_keys
+        )
+        setattr(self, "_properties_manager", properties_manager)
 
     @property
     def id(self) -> int:
         return self.__id__
 
     def update(self, data) -> None:
-        self.__dict__.update(data)
+        """
+        Update properties using PropertiesManager.
+        
+        This method updates both PropertiesManager and __dict__ to maintain
+        backward compatibility.
+        """
+        if hasattr(self, '_properties_manager'):
+            # Update PropertiesManager (with validation)
+            self._properties_manager.update(data)
+            # Sync to __dict__ for backward compatibility
+            for key, value in data.items():
+                if key not in self._properties_manager._internal_keys:
+                    self.__dict__[key] = value
+        else:
+            # Fallback for objects created before PropertiesManager integration
+            self.__dict__.update(data)
+            # Try to initialize PropertiesManager if it doesn't exist
+            if not hasattr(self, '_properties_manager'):
+                self._init_properties_manager()
+
+    @property
+    def properties(self) -> dict:
+        """
+        Get properties as a dictionary.
+        
+        This property returns a view of properties managed by PropertiesManager,
+        excluding internal attributes for clean separation.
+        
+        If PropertiesManager doesn't exist or needs sync, it will be initialized/updated.
+        """
+        if not hasattr(self, '_properties_manager'):
+            self._init_properties_manager()
+        else:
+            # Sync PropertiesManager with current __dict__ to ensure consistency
+            # This handles cases where attributes were set after PropertiesManager initialization
+            internal_keys = self._properties_manager._internal_keys
+            current_props = {
+                k: v for k, v in self.__dict__.items() 
+                if k not in internal_keys
+            }
+            # Update PropertiesManager with any new properties from __dict__
+            for key, value in current_props.items():
+                if key not in self._properties_manager:
+                    self._properties_manager.set(key, value)
+        
+        return self._properties_manager.items()
 
     @classmethod
     def _validate(cls, data) -> dict:
         values = {}
         for key in cls.__annotations__:
-            if (value := data.get(key, cls.__dict__.get(key))) is not None:
-                values[key] = value
+            # Check if key is explicitly provided in data
+            if key in data:
+                value = data[key]
+                # Include value if it's not None (this includes False, 0, empty strings, etc.)
+                # False is not None, so it will be included
+                if value is not None:
+                    values[key] = value
+            else:
+                # Use default from class dict if key not in data
+                default_value = cls.__dict__.get(key)
+                # Include default if it's not None (this includes False)
+                if default_value is not None:
+                    values[key] = default_value
         return values
 
 

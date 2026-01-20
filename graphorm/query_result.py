@@ -92,6 +92,12 @@ class QueryResult:
             raise response[-1]
 
     def parse_results(self, raw_result_set):
+        # Handle empty or invalid result sets
+        if not isinstance(raw_result_set, list) or len(raw_result_set) == 0:
+            self.header = []
+            self.result_set = []
+            return
+
         self.header = self.parse_header(raw_result_set)
 
         # Empty header.
@@ -102,6 +108,10 @@ class QueryResult:
 
     def parse_statistics(self, raw_statistics):
         self.statistics = {}
+
+        # Handle non-list responses (like from GRAPH.DELETE)
+        if not isinstance(raw_statistics, list):
+            return
 
         # decode statistics
         for idx, stat in enumerate(raw_statistics):
@@ -115,12 +125,18 @@ class QueryResult:
 
     def parse_header(self, raw_result_set):
         # An array of column name/column type pairs.
+        if len(raw_result_set) == 0:
+            return []
         header = raw_result_set[0]
-        return header
+        return header if isinstance(header, list) else []
 
     def parse_records(self, raw_result_set):
         records = []
+        if len(raw_result_set) < 2:
+            return records
         result_set = raw_result_set[1]
+        if not isinstance(result_set, list):
+            return records
         for row in result_set:
             record = []
             for idx, cell in enumerate(row):

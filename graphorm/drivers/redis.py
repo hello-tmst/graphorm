@@ -134,12 +134,24 @@ class RedisDriver(Driver):
                 batch_num = (i // batch_size) + 1
                 
                 try:
-                    query = " ".join(item.merge() for item in batch)
-                    logger.debug(
-                        f"Committing nodes batch {batch_num}/{total_node_batches} "
-                        f"({len(batch)} items) to graph {graph.name}"
-                    )
-                    last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                    # For batch_size > 0, execute queries individually to avoid syntax errors
+                    # Multiple MERGE statements cannot be simply joined with spaces
+                    if batch_size > 0:
+                        for item in batch:
+                            query = item.merge()
+                            logger.debug(
+                                f"Committing node in batch {batch_num}/{total_node_batches} "
+                                f"to graph {graph.name}: {query[:100]}..."
+                            )
+                            last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                    else:
+                        # If batch_size is 0 or negative, join with semicolons (original behavior for compatibility)
+                        query = " ".join(item.merge() for item in batch)
+                        logger.debug(
+                            f"Committing nodes batch {batch_num}/{total_node_batches} "
+                            f"({len(batch)} items) to graph {graph.name}"
+                        )
+                        last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
                 except Exception as e:
                     logger.error(
                         f"Error committing nodes batch {batch_num}/{total_node_batches} "

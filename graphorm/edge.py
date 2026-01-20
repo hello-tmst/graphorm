@@ -3,7 +3,7 @@ from logging import getLogger
 
 from stringcase import camelcase
 from .registry import Registry
-from .utils import quote_string, random_string
+from .utils import quote_string, random_string, format_cypher_value
 from .node import Node
 from .common import Common
 
@@ -83,9 +83,9 @@ class Edge(Common):
 
         return res
 
-    @property
-    def properties(self) -> dict:
-        return self.__dict__
+    # Properties are now managed by PropertiesManager in Common class
+    # The properties property is inherited from Common and returns
+    # only user-defined properties, excluding internal attributes
 
     def merge(self):
         # When nodes and edges are committed separately, we need to MATCH nodes by primary key
@@ -98,10 +98,10 @@ class Edge(Common):
             # Build source node pattern
             if isinstance(self.src_node.__primary_key__, str):
                 pk = self.src_node.__primary_key__
-                src_pattern = f"{{ {pk}: {quote_string(self.src_node.properties[pk])} }}"
+                src_pattern = f"{{ {pk}: {format_cypher_value(self.src_node.properties[pk])} }}"
             elif isinstance(self.src_node.__primary_key__, list):
                 props = ",".join(
-                    f"{pk}:{quote_string(self.src_node.properties[pk])}" 
+                    f"{pk}:{format_cypher_value(self.src_node.properties[pk])}" 
                     for pk in self.src_node.__primary_key__
                 )
                 src_pattern = f"{{ {props} }}"
@@ -111,10 +111,10 @@ class Edge(Common):
             # Build destination node pattern
             if isinstance(self.dst_node.__primary_key__, str):
                 pk = self.dst_node.__primary_key__
-                dst_pattern = f"{{ {pk}: {quote_string(self.dst_node.properties[pk])} }}"
+                dst_pattern = f"{{ {pk}: {format_cypher_value(self.dst_node.properties[pk])} }}"
             elif isinstance(self.dst_node.__primary_key__, list):
                 props = ",".join(
-                    f"{pk}:{quote_string(self.dst_node.properties[pk])}" 
+                    f"{pk}:{format_cypher_value(self.dst_node.properties[pk])}" 
                     for pk in self.dst_node.__primary_key__
                 )
                 dst_pattern = f"{{ {props} }}"

@@ -232,25 +232,123 @@ class Graph:
         :param properties: Dictionary of properties to update
         :return: QueryResult object
         """
+        # Ensure node has all required properties for primary key lookup
+        # If node was retrieved from graph, it might be missing some properties
+        # We need to ensure primary key properties are present
+        if hasattr(node, '__primary_key__'):
+            if isinstance(node.__primary_key__, str):
+                pk = node.__primary_key__
+                if pk not in node.properties:
+                    logger.warning(
+                        f"update_node: Primary key '{pk}' not in node properties. "
+                        f"Node properties: {node.properties}"
+                    )
+            elif isinstance(node.__primary_key__, list):
+                for pk in node.__primary_key__:
+                    if pk not in node.properties:
+                        logger.warning(
+                            f"update_node: Primary key '{pk}' not in node properties. "
+                            f"Node properties: {node.properties}"
+                        )
+        
         # Generate SET clause
         set_clauses = []
         for key, value in properties.items():
+            # Include value if it's not None (this includes True, False, 0, empty strings, etc.)
             if value is not None:
                 value_str = format_cypher_value(value)
                 set_clauses.append(f"{node.alias}.{key}={value_str}")
+            # Note: False is not None, so it's already handled above
         
         if not set_clauses:
             raise ValueError("No properties to update")
         
-        # Generate query
-        query = f"MATCH {node.__str_pk__()} SET {', '.join(set_clauses)}"
+        # Generate query - use node alias in MATCH to ensure we find the right node
+        pk_pattern = node.__str_pk__()
+        query = f"MATCH {pk_pattern} SET {', '.join(set_clauses)} RETURN {node.alias}"
+        
+        # Log query for debugging
+        logger.debug(f"update_node query: {query}")
+        logger.debug(f"update_node node properties: {node.properties}")
+        logger.debug(f"update_node node __str_pk__: {pk_pattern}")
+        logger.debug(f"update_node update properties: {properties}")
         
         # Execute query
         result = self.query(query)
         
+        # Check if node was found and updated
+        if hasattr(result, 'result_set') and len(result.result_set) == 0:
+            logger.error(
+                f"update_node: Node not found for update. "
+                f"Query: {query}, "
+                f"Node properties: {node.properties}, "
+                f"Update properties: {properties}, "
+                f"Node __str_pk__: {pk_pattern}"
+            )
+            # Try to find the node with a simpler query to debug
+            debug_query = f"MATCH (n) WHERE n.path = {quote_string(node.properties.get('path', ''))} RETURN n LIMIT 1"
+            debug_result = self.query(debug_query)
+            if len(debug_result.result_set) > 0:
+                found_node = debug_result.result_set[0][0]
+                logger.error(
+                    f"update_node: Node exists in graph but not found by primary key. "
+                    f"Found node properties: {found_node.properties}, "
+                    f"Expected primary key: {node.properties.get('path', '')}"
+                )
+            else:
+                logger.error(f"update_node: Node does not exist in graph at all.")
+        
+        # Check if update was successful by verifying properties_set in statistics
+        if hasattr(result, 'statistics') and 'Properties set' in result.statistics:
+            properties_set = result.statistics.get('Properties set', 0)
+            if properties_set == 0:
+                logger.error(
+                    f"update_node: No properties were set. "
+                    f"Query: {query}, "
+                    f"Node properties: {node.properties}, "
+                    f"Update properties: {properties}, "
+                    f"Result statistics: {result.statistics}"
+                )
+            else:
+                logger.debug(f"update_node: Successfully set {properties_set} properties")
+        
         # Update local node if it exists in cache
+        # But also check by primary key, as node from graph may have different alias
         if node.alias in self._nodes:
             self._nodes[node.alias].update(properties)
+        else:
+            # Try to find node in cache by primary key and update it
+            # This is important when updating a node retrieved from graph (different alias)
+            if hasattr(node, '__primary_key__'):
+                if isinstance(node.__primary_key__, str):
+                    pk = node.__primary_key__
+                    pk_value = node.properties.get(pk)
+                    if pk_value is not None:
+                        for cached_alias, cached_node in self._nodes.items():
+                            if (hasattr(cached_node, '__primary_key__') and 
+                                isinstance(cached_node.__primary_key__, str) and
+                                cached_node.__primary_key__ == pk and
+                                cached_node.properties.get(pk) == pk_value):
+                                # Found node by primary key, update it
+                                cached_node.update(properties)
+                                logger.debug(f"update_node: Updated cached node by primary key {pk}={pk_value}")
+                                break
+                elif isinstance(node.__primary_key__, list):
+                    # For composite primary keys, check all key values match
+                    for cached_alias, cached_node in self._nodes.items():
+                        if hasattr(cached_node, '__primary_key__'):
+                            if isinstance(cached_node.__primary_key__, list):
+                                # Check if all primary key values match
+                                match = True
+                                for pk in node.__primary_key__:
+                                    if cached_node.properties.get(pk) != node.properties.get(pk):
+                                        match = False
+                                        break
+                                if match:
+                                    # Found node by primary key, update it
+                                    cached_node.update(properties)
+                                    logger.debug(f"update_node: Updated cached node by composite primary key")
+                                    break
         
         return result
 
