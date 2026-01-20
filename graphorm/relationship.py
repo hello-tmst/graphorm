@@ -6,7 +6,7 @@ allowing lazy loading of related nodes when accessed.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Union, TypeVar, Generic
+from typing import TYPE_CHECKING, List, Union, TypeVar, Generic
 
 if TYPE_CHECKING:
     from .node import Node
