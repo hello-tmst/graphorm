@@ -12,7 +12,7 @@ build-backend = "hatchling.build"
 [project]
 name = "graphorm"
 description = ""
-version = "0.1.11"
+version = "0.2.0"
 readme = "README.md"
 authors = [{name = "ed4b816e", email = "ed4b816e@gmail.com"}]
 requires-python = '>=3.10'
