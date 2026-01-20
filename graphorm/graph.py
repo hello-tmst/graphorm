@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from logging import getLogger
-from typing import TYPE_CHECKING, Optional, Dict, List, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Any, TypeVar
 
 import redis
 
@@ -13,6 +15,8 @@ if TYPE_CHECKING:
     from graphorm.drivers.base import Driver
 
 logger = getLogger(__file__)
+
+N = TypeVar('N', bound=Node)
 
 
 class Graph:
@@ -450,7 +454,7 @@ class Graph:
         # TODO: Implement if RedisGraph provides index listing procedure
         return []
 
-    def bulk_upsert(self, node_class: type[Node], data: List[Dict[str, Any]], 
+    def bulk_upsert(self, node_class: type[N], data: List[Dict[str, Any]], 
                     batch_size: int = 1000) -> Optional[QueryResult]:
         """
         Bulk upsert nodes using UNWIND for efficient insertion.

@@ -4,15 +4,19 @@ Property descriptor for Node and Edge classes.
 This module provides Property class that acts as a descriptor for node/edge properties,
 allowing them to be used in queries with operators similar to SQLAlchemy 2.0.
 """
-from typing import TYPE_CHECKING, Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, TypeVar, Generic, Union, Optional
 
 if TYPE_CHECKING:
     from .node import Node
     from .edge import Edge
     from .expression import BinaryExpression, OrderByExpression
 
+T = TypeVar('T')
 
-class Property:
+
+class Property(Generic[T]):
     """
     Property descriptor for Node and Edge classes.
     
@@ -32,7 +36,7 @@ class Property:
         self.name = name
         self._alias = alias
     
-    def __get__(self, instance: Any, owner: type) -> Any:
+    def __get__(self, instance: Optional["Node"], owner: type) -> Union[T, "Property[T]"]:
         """
         Descriptor protocol: return Property object when accessed as class attribute,
         property value when accessed as instance attribute.
@@ -52,21 +56,21 @@ class Property:
                 prop._alias = owner._alias
             else:
                 prop._alias = self._alias
-            return prop
+            return prop  # type: ignore[return-value]
         else:
             # Accessed as instance attribute - return property value
             # properties is a @property that returns a dict
             props = instance.properties
             if hasattr(props, 'get'):
-                return props.get(self.name)
+                return props.get(self.name)  # type: ignore[return-value]
             elif hasattr(props, '__getitem__'):
                 try:
-                    return props[self.name]
+                    return props[self.name]  # type: ignore[return-value]
                 except (KeyError, TypeError):
-                    return None
+                    return None  # type: ignore[return-value]
             else:
                 # Fallback: try to get from __dict__
-                return getattr(instance, self.name, None)
+                return getattr(instance, self.name, None)  # type: ignore[return-value]
     
     def __set__(self, instance: Any, value: Any) -> None:
         """

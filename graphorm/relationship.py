@@ -4,33 +4,41 @@ Relationship descriptor for lazy loading of related nodes.
 This module provides Relationship class that acts as a descriptor for node relationships,
 allowing lazy loading of related nodes when accessed.
 """
-from typing import TYPE_CHECKING, Any, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, List, Union, TypeVar, Generic
 
 if TYPE_CHECKING:
     from .node import Node
     from .edge import Edge
 
+N = TypeVar('N', bound="Node")
 
-class Relationship:
+
+class Relationship(Generic[N]):
     """
     Relationship descriptor for lazy loading of related nodes.
     
     Acts as a descriptor that loads related nodes when accessed on a node instance.
     """
     
-    def __init__(self, edge_class: Union[type["Edge"], str], direction: str = "outgoing"):
+    def __init__(self, edge_class: Union[type[Edge], str], 
+                 direction: str = "outgoing",
+                 related_node_type: type[N] | None = None):
         """
         Initialize relationship descriptor.
         
         :param edge_class: Edge class that represents the relationship, or relation name as string
         :param direction: Direction of relationship ("outgoing", "incoming", or "both")
+        :param related_node_type: Optional type of related nodes for type safety
         """
         self.edge_class = edge_class
         self.direction = direction
+        self.related_node_type = related_node_type
         edge_name = edge_class.__name__ if isinstance(edge_class, type) else edge_class
         self._cache_attr = f"_cached_{edge_name}_{direction}"
     
-    def __get__(self, instance: "Node", owner: type) -> Any:
+    def __get__(self, instance: Node, owner: type) -> List[N]:
         """
         Descriptor protocol: load related nodes when accessed.
         
@@ -54,7 +62,7 @@ class Relationship:
         
         return related
     
-    def _load_related(self, instance: "Node") -> List["Node"]:
+    def _load_related(self, instance: Node) -> List[N]:
         """
         Load related nodes via MATCH query.
         
@@ -141,7 +149,7 @@ class Relationship:
         
         return related_nodes
     
-    def clear_cache(self, instance: "Node") -> None:
+    def clear_cache(self, instance: Node) -> None:
         """
         Clear cached related nodes for an instance.
         
