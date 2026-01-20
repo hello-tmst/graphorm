@@ -144,20 +144,26 @@ class RedisDriver(Driver):
                     continue
         
         # Then commit edges in batches
-        # Note: Edges are committed one by one to avoid "node can't be redeclared" errors
-        # when multiple edges in a batch reference the same node
         if edges:
-            total_edges = len(edges)
-            for i, edge in enumerate(edges, 1):
+            total_edge_batches = (len(edges) + batch_size - 1) // batch_size
+            for i in range(0, len(edges), batch_size):
+                batch = edges[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                
                 try:
-                    query = edge.merge()
-                    logger.debug(
-                        f"Committing edge {i}/{total_edges} to graph {graph.name}"
-                    )
-                    last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
+                    # Commit edges one by one to avoid "node can't be redeclared" errors
+                    # when multiple edges reference the same node
+                    for edge_idx, edge in enumerate(batch, 1):
+                        query = edge.merge()
+                        logger.debug(
+                            f"Committing edge {edge_idx}/{len(batch)} in batch {batch_num}/{total_edge_batches} "
+                            f"to graph {graph.name}"
+                        )
+                        last_result = self.query(CMD.QUERY, graph.name, query, graph=graph)
                 except Exception as e:
                     logger.error(
-                        f"Error committing edge {i}/{total_edges} to graph {graph.name}: {e}",
+                        f"Error committing edges batch {batch_num}/{total_edge_batches} "
+                        f"({len(batch)} items) to graph {graph.name}: {e}",
                         exc_info=True
                     )
                     continue

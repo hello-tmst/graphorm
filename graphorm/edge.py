@@ -59,21 +59,9 @@ class Edge(Common):
         return res
 
     def __str__(self):
-        # Source node - use primary key pattern to find node
+        # Source node.
         if isinstance(self.src_node, Node):
-            # Build pattern with labels and primary key (without alias to avoid conflicts)
-            src_labels = ":".join(self.src_node.labels)
-            if isinstance(self.src_node.__primary_key__, str):
-                pk = self.src_node.__primary_key__
-                res = f"(:{src_labels} {{{pk}: {quote_string(self.src_node.properties[pk])}}})"
-            elif isinstance(self.src_node.__primary_key__, list):
-                props = ",".join(
-                    f"{pk}:{quote_string(self.src_node.properties[pk])}" 
-                    for pk in self.src_node.__primary_key__
-                )
-                res = f"(:{src_labels} {{{props}}})"
-            else:
-                res = f"(:{src_labels})"
+            res = f"({str(self.src_node.alias)})"
         else:
             res = "()"
 
@@ -87,20 +75,9 @@ class Edge(Common):
             res += "{" + props + "}"
         res += "]->"
 
-        # Dest node - use primary key pattern to find node
+        # Dest node.
         if isinstance(self.dst_node, Node):
-            dst_labels = ":".join(self.dst_node.labels)
-            if isinstance(self.dst_node.__primary_key__, str):
-                pk = self.dst_node.__primary_key__
-                res += f"(:{dst_labels} {{{pk}: {quote_string(self.dst_node.properties[pk])}}})"
-            elif isinstance(self.dst_node.__primary_key__, list):
-                props = ",".join(
-                    f"{pk}:{quote_string(self.dst_node.properties[pk])}" 
-                    for pk in self.dst_node.__primary_key__
-                )
-                res += f"(:{dst_labels} {{{props}}})"
-            else:
-                res += f"(:{dst_labels})"
+            res += f"({str(self.dst_node.alias)})"
         else:
             res += "()"
 
@@ -111,8 +88,56 @@ class Edge(Common):
         return self.__dict__
 
     def merge(self):
-        # Use original simple MERGE - it should work if nodes are committed first
-        # The original implementation used alias, which works when nodes are already in the graph
+        # When nodes and edges are committed separately, we need to MATCH nodes by primary key
+        # instead of using alias (which only works in the same query)
+        if isinstance(self.src_node, Node) and isinstance(self.dst_node, Node):
+            # Build MATCH patterns for nodes using primary keys
+            src_labels = ":".join(self.src_node.labels)
+            dst_labels = ":".join(self.dst_node.labels)
+            
+            # Build source node pattern
+            if isinstance(self.src_node.__primary_key__, str):
+                pk = self.src_node.__primary_key__
+                src_pattern = f"{{ {pk}: {quote_string(self.src_node.properties[pk])} }}"
+            elif isinstance(self.src_node.__primary_key__, list):
+                props = ",".join(
+                    f"{pk}:{quote_string(self.src_node.properties[pk])}" 
+                    for pk in self.src_node.__primary_key__
+                )
+                src_pattern = f"{{ {props} }}"
+            else:
+                src_pattern = ""
+            
+            # Build destination node pattern
+            if isinstance(self.dst_node.__primary_key__, str):
+                pk = self.dst_node.__primary_key__
+                dst_pattern = f"{{ {pk}: {quote_string(self.dst_node.properties[pk])} }}"
+            elif isinstance(self.dst_node.__primary_key__, list):
+                props = ",".join(
+                    f"{pk}:{quote_string(self.dst_node.properties[pk])}" 
+                    for pk in self.dst_node.__primary_key__
+                )
+                dst_pattern = f"{{ {props} }}"
+            else:
+                dst_pattern = ""
+            
+            # Build edge pattern
+            edge_pattern = f"-[{self.alias}:{self.relation}"
+            if self.properties:
+                props = ",".join(
+                    f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
+                )
+                edge_pattern += "{" + props + "}"
+            edge_pattern += "]->"
+            
+            # MATCH nodes by primary key, then MERGE edge (to avoid duplicates)
+            src_var = "src"
+            dst_var = "dst"
+            if src_pattern and dst_pattern:
+                return f"MATCH ({src_var}:{src_labels} {src_pattern}), ({dst_var}:{dst_labels} {dst_pattern}) MERGE ({src_var}){edge_pattern}({dst_var})"
+            else:
+                # Fallback to original if no primary key
+                return "MERGE " + str(self)
         return "MERGE " + str(self)
 
     def __eq__(self, rhs):
