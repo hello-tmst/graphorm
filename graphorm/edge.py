@@ -59,9 +59,21 @@ class Edge(Common):
         return res
 
     def __str__(self):
-        # Source node - use alias for reference (nodes should already exist)
+        # Source node - use primary key pattern to find node
         if isinstance(self.src_node, Node):
-            res = f"({self.src_node.alias})"
+            # Build pattern with labels and primary key (without alias to avoid conflicts)
+            src_labels = ":".join(self.src_node.labels)
+            if isinstance(self.src_node.__primary_key__, str):
+                pk = self.src_node.__primary_key__
+                res = f"(:{src_labels} {{{pk}: {quote_string(self.src_node.properties[pk])}}})"
+            elif isinstance(self.src_node.__primary_key__, list):
+                props = ",".join(
+                    f"{pk}:{quote_string(self.src_node.properties[pk])}" 
+                    for pk in self.src_node.__primary_key__
+                )
+                res = f"(:{src_labels} {{{props}}})"
+            else:
+                res = f"(:{src_labels})"
         else:
             res = "()"
 
@@ -75,9 +87,20 @@ class Edge(Common):
             res += "{" + props + "}"
         res += "]->"
 
-        # Dest node - use alias for reference (nodes should already exist)
+        # Dest node - use primary key pattern to find node
         if isinstance(self.dst_node, Node):
-            res += f"({self.dst_node.alias})"
+            dst_labels = ":".join(self.dst_node.labels)
+            if isinstance(self.dst_node.__primary_key__, str):
+                pk = self.dst_node.__primary_key__
+                res += f"(:{dst_labels} {{{pk}: {quote_string(self.dst_node.properties[pk])}}})"
+            elif isinstance(self.dst_node.__primary_key__, list):
+                props = ",".join(
+                    f"{pk}:{quote_string(self.dst_node.properties[pk])}" 
+                    for pk in self.dst_node.__primary_key__
+                )
+                res += f"(:{dst_labels} {{{props}}})"
+            else:
+                res += f"(:{dst_labels})"
         else:
             res += "()"
 
@@ -88,24 +111,8 @@ class Edge(Common):
         return self.__dict__
 
     def merge(self):
-        # Use MERGE with primary key patterns for nodes to ensure nodes are found/created correctly
-        if isinstance(self.src_node, Node) and isinstance(self.dst_node, Node):
-            # Use primary key patterns to find/create nodes
-            src_pattern = self.src_node.__str_pk__()
-            dst_pattern = self.dst_node.__str_pk__()
-            
-            # Create edge pattern
-            edge_pattern = f"-[{self.alias}:{self.relation}"
-            if self.properties:
-                props = ",".join(
-                    f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
-                )
-                edge_pattern += "{" + props + "}"
-            edge_pattern += "]->"
-            
-            # MERGE will find nodes by primary key or create them if they don't exist
-            # Then create the edge if it doesn't exist
-            return f"MERGE {src_pattern}{edge_pattern}{dst_pattern}"
+        # Use original simple MERGE - it should work if nodes are committed first
+        # The original implementation used alias, which works when nodes are already in the graph
         return "MERGE " + str(self)
 
     def __eq__(self, rhs):
