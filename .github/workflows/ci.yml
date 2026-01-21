@@ -32,25 +32,15 @@ jobs:
 
       - name: Generate coverage badge
         run: |
-          # Extract coverage percentage from coverage report
-          # Try multiple methods to get coverage percentage
-          coverage=$(python -m coverage report | tail -1 | grep -oE '[0-9]+%' | head -1 | sed 's/%//' || echo "0")
-          
-          # If that didn't work, try parsing the summary line
-          if [ "$coverage" = "0" ] || [ -z "$coverage" ]; then
-            coverage=$(python -m coverage report | grep -E '^TOTAL' | awk '{print $NF}' | sed 's/%//' || echo "0")
+          # Extract coverage percentage from XML report (most reliable method)
+          coverage=0
+          if [ -f coverage.xml ]; then
+            coverage=$(uv run python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(int(float(root.attrib.get('line-rate', 0)) * 100))" 2>/dev/null || echo "0")
           fi
           
-          # If still no coverage, try from XML report
+          # Fallback: try to parse from terminal output
           if [ "$coverage" = "0" ] || [ -z "$coverage" ]; then
-            if [ -f coverage.xml ]; then
-              coverage=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(int(float(root.attrib.get('line-rate', 0)) * 100))" || echo "0")
-            fi
-          fi
-          
-          # Fallback: use coverage report with --format option
-          if [ "$coverage" = "0" ] || [ -z "$coverage" ]; then
-            coverage=$(python -m coverage report --format=markdown 2>/dev/null | tail -1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | sed 's/%//' | cut -d. -f1 || echo "0")
+            coverage=$(uv run python -m coverage report 2>/dev/null | tail -1 | grep -oE '[0-9]+%' | head -1 | sed 's/%//' || echo "0")
           fi
           
           # Ensure we have a valid number
@@ -66,6 +56,7 @@ jobs:
           elif [ "$coverage" -ge 60 ]; then
             color="yellowgreen"
           elif [ "$coverage" -ge 50 ]; then
+            color="yellow"
           else
             color="red"
           fi
