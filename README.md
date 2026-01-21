@@ -2,6 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![codecov](https://codecov.io/gh/hello-tmst/graphorm/branch/main/graph/badge.svg)](https://codecov.io/gh/hello-tmst/graphorm)
 
 GraphORM is a modern Python ORM for graph databases, specifically designed for **RedisGraph** and **FalkorDB**. It provides a simple, intuitive API with type safety, automatic property management, and a powerful fluent query builder.
 
