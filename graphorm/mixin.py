@@ -16,7 +16,7 @@ class NodeMixin(Driver):
         :return: Node, if it in the graph, else None
         """
         q = f"MATCH {node.__str_pk__()} RETURN {node.alias}"
-        result = self.query(CMD.QUERY, graph.name, q).result_set
+        result = self.query(CMD.QUERY, graph.name, q, graph=graph).result_set
         if len(result) > 0:
             _node = result[0][0]
             _node.set_alias(node.alias)
@@ -33,7 +33,7 @@ class EdgeMixin(Driver):
         :return: Edge, if it in the graph, else None
         """
         q = f"MATCH {edge.src_node.__str_pk__()}-{edge.__str_pk__()}->{edge.dst_node.__str_pk__()} RETURN {edge.relation}"
-        result = self.query(CMD.QUERY, graph.name, q).result_set
+        result = self.query(CMD.QUERY, graph.name, q, graph=graph).result_set
         if len(result) > 0:
             _edge = result[0][0]
             _edge.set_alias(edge.alias)

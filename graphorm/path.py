@@ -64,15 +64,20 @@ class Path:
         res = "<"
         edge_count = self.edge_count()
         for i in range(0, edge_count):
-            node_id = self.get_node(i).id
+            node = self.get_node(i)
+            node_id = node.id if node.id is not None else 0
             res += "(" + str(node_id) + ")"
             edge = self.get_relationship(i)
+            edge_id = edge.id if edge.id is not None else 0
+            # Compare node IDs, not node objects
+            src_node_id = edge.src_node.id if edge.src_node.id is not None else 0
             res += (
-                "-[" + str(int(edge.id)) + "]->"
-                if edge.src_node == node_id
-                else "<-[" + str(int(edge.id)) + "]-"
+                "-[" + str(int(edge_id)) + "]->"
+                if src_node_id == node_id
+                else "<-[" + str(int(edge_id)) + "]-"
             )
-        node_id = self.get_node(edge_count).id
-        res += "(" + str(node_id) + ")"
+        last_node = self.get_node(edge_count)
+        last_node_id = last_node.id if last_node.id is not None else 0
+        res += "(" + str(last_node_id) + ")"
         res += ">"
         return res
