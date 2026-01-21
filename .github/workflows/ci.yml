@@ -7,8 +7,7 @@ on:
     branches: [main, master]
 
 permissions:
-  id-token: write  # для OIDC авторизации в Codecov
-  contents: read
+  contents: write  # для коммита badge файла
 
 jobs:
   test:
@@ -31,10 +30,38 @@ jobs:
       - name: Run tests with coverage
         run: uv run pytest --cov=graphorm --cov-report=xml --cov-report=term
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+      - name: Generate coverage badge
+        run: |
+          # Extract coverage percentage from coverage report
+          coverage=$(python -m coverage report --format=total | tail -1 | awk '{print $NF}' | sed 's/%//')
+          
+          # Determine badge color based on coverage
+          if (( $(echo "$coverage >= 80" | bc -l) )); then
+            color="brightgreen"
+          elif (( $(echo "$coverage >= 70" | bc -l) )); then
+            color="green"
+          elif (( $(echo "$coverage >= 60" | bc -l) )); then
+            color="yellowgreen"
+          elif (( $(echo "$coverage >= 50" | bc -l) )); then
+            color="yellow"
+          else
+            color="red"
+          fi
+          
+          # Create badges directory if it doesn't exist
+          mkdir -p .github/badges
+          
+          # Generate JSON for shields.io endpoint
+          echo "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"${coverage}%\", \"color\": \"$color\"}" > .github/badges/coverage.json
+          
+          # Display coverage for debugging
+          echo "Coverage: ${coverage}%"
+          cat .github/badges/coverage.json
+
+      - name: Commit coverage badge
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          files: coverage.xml
-          fail_ci_if_error: true
-          verbose: true
-          use_oidc: true
+          file_pattern: '.github/badges/coverage.json'
+          commit_message: 'Update coverage badge'
+          skip_dirty_check: true

@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![codecov](https://codecov.io/gh/hello-tmst/graphorm/branch/main/graph/badge.svg)](https://codecov.io/gh/hello-tmst/graphorm)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hello-tmst/graphorm/main/.github/badges/coverage.json)](https://github.com/hello-tmst/graphorm/actions)
 
 GraphORM is a modern Python ORM for graph databases, specifically designed for **RedisGraph** and **FalkorDB**. It provides a simple, intuitive API with type safety, automatic property management, and a powerful fluent query builder.
 
@@ -343,6 +343,10 @@ pytest --cov=graphorm --cov-report=term-missing
 
 ## Breaking Changes
 
+### Version 0.3.0
+
+**No breaking changes.** This release maintains full backward compatibility with version 0.2.x.
+
 ### Version 0.2.0+
 
 - **Removed dependency on `camelcase`**: Labels and relations now use class names as-is (e.g., `Page` instead of `page`)
@@ -352,7 +356,7 @@ pytest --cov=graphorm --cov-report=term-missing
 
 If you're upgrading from an older version:
 
-1. Update all Cypher queries to use class names instead of camelcase labels:
+1. **From 0.1.x to 0.2.0+**: Update all Cypher queries to use class names instead of camelcase labels:
    ```python
    # Old (before 0.2.0)
    query = "MATCH (p:page) RETURN p"
@@ -368,6 +372,8 @@ If you're upgrading from an older version:
        __primary_key__ = ["path"]
        path: str
    ```
+
+3. **From 0.2.x to 0.3.0**: No migration required. All existing code continues to work as before. New features (DELETE, REMOVE, WITH, CASE, etc.) are opt-in.
 
 ## License
 
