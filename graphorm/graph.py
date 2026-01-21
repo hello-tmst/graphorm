@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Optional, Dict, List, Any, TypeVar
+from typing import TYPE_CHECKING, Optional, Dict, Any, TypeVar, Union
 
 import redis
 
@@ -13,6 +13,8 @@ from .utils import quote_string, format_cypher_value
 
 if TYPE_CHECKING:
     from graphorm.drivers.base import Driver
+    from graphorm.select import Select
+    from graphorm.delete import Delete
 
 logger = getLogger(__file__)
 
@@ -228,27 +230,62 @@ class Graph:
         result = self._driver.query(CMD.QUERY, self._name, q, params, timeout, read_only, graph=self)
         return result
     
-    def execute(self, stmt: "Select", read_only: bool = False, timeout: Optional[int] = None) -> QueryResult:
+    def execute(self, stmt: Union["Select", "Delete"], read_only: bool = False, timeout: Optional[int] = None) -> QueryResult:
         """
-        Execute a Select statement.
+        Execute a Select or Delete statement.
         
-        :param stmt: Select statement object
-        :param read_only: Execute as read-only query if set to True
+        :param stmt: Select or Delete statement object
+        :param read_only: Execute as read-only query if set to True (ignored for Delete)
         :param timeout: Maximum runtime for read queries in milliseconds
         :return: QueryResult object
         """
+        from .delete import Delete
+        
         cypher = stmt.to_cypher()
         params = stmt.get_params()
-        return self.query(cypher, params=params, read_only=read_only, timeout=timeout)
+        # Delete statements are always write operations
+        actual_read_only = read_only and not isinstance(stmt, Delete)
+        return self.query(cypher, params=params, read_only=actual_read_only, timeout=timeout)
+    
+    def delete_node(self, node: Node, detach: bool = False) -> QueryResult:
+        """
+        Delete a node from the graph.
+        
+        :param node: Node instance to delete
+        :param detach: If True, use DETACH DELETE (removes all relationships)
+        :return: QueryResult object
+        """
+        pk_pattern = node.__str_pk__()
+        delete_keyword = "DETACH DELETE" if detach else "DELETE"
+        query = f"MATCH {pk_pattern} {delete_keyword} {node.alias}"
+        return self.query(query)
+    
+    def delete_edge(self, edge: Edge) -> QueryResult:
+        """
+        Delete an edge from the graph.
+        
+        :param edge: Edge instance to delete
+        :return: QueryResult object
+        """
+        # Build MATCH pattern for edge
+        src_pattern = edge.src_node.__str_pk__()
+        dst_pattern = edge.dst_node.__str_pk__()
+        edge_pattern = f"[{edge.alias}:{edge.relation}]"
+        query = f"MATCH {src_pattern}-{edge_pattern}->{dst_pattern} DELETE {edge.alias}"
+        return self.query(query)
 
-    def update_node(self, node: Node, properties: dict) -> QueryResult:
+    def update_node(self, node: Node, properties: dict = None, remove: list[str] = None) -> QueryResult:
         """
         Update properties of a node in the graph.
 
         :param node: Node instance to update
-        :param properties: Dictionary of properties to update
+        :param properties: Dictionary of properties to update (optional)
+        :param remove: List of property names to remove (optional)
         :return: QueryResult object
         """
+        if properties is None:
+            properties = {}
+        
         # Ensure node has all required properties for primary key lookup
         # If node was retrieved from graph, it might be missing some properties
         # We need to ensure primary key properties are present
@@ -270,25 +307,43 @@ class Graph:
         
         # Generate SET clause
         set_clauses = []
-        for key, value in properties.items():
-            # Include value if it's not None (this includes True, False, 0, empty strings, etc.)
-            if value is not None:
-                value_str = format_cypher_value(value)
-                set_clauses.append(f"{node.alias}.{key}={value_str}")
-            # Note: False is not None, so it's already handled above
+        if properties:
+            for key, value in properties.items():
+                # Include value if it's not None (this includes True, False, 0, empty strings, etc.)
+                if value is not None:
+                    value_str = format_cypher_value(value)
+                    set_clauses.append(f"{node.alias}.{key}={value_str}")
         
-        if not set_clauses:
-            raise ValueError("No properties to update")
+        # Generate REMOVE clause
+        remove_clauses = []
+        if remove:
+            for prop_name in remove:
+                remove_clauses.append(f"{node.alias}.{prop_name}")
+        
+        if not set_clauses and not remove_clauses:
+            raise ValueError("No properties to update or remove")
         
         # Generate query - use node alias in MATCH to ensure we find the right node
         pk_pattern = node.__str_pk__()
-        query = f"MATCH {pk_pattern} SET {', '.join(set_clauses)} RETURN {node.alias}"
+        query_parts = [f"MATCH {pk_pattern}"]
+        
+        if set_clauses:
+            query_parts.append(f"SET {', '.join(set_clauses)}")
+        
+        if remove_clauses:
+            query_parts.append(f"REMOVE {', '.join(remove_clauses)}")
+        
+        query_parts.append(f"RETURN {node.alias}")
+        query = " ".join(query_parts)
         
         # Log query for debugging
         logger.debug(f"update_node query: {query}")
         logger.debug(f"update_node node properties: {node.properties}")
         logger.debug(f"update_node node __str_pk__: {pk_pattern}")
-        logger.debug(f"update_node update properties: {properties}")
+        if properties:
+            logger.debug(f"update_node update properties: {properties}")
+        if remove:
+            logger.debug(f"update_node remove properties: {remove}")
         
         # Execute query
         result = self.query(query)
@@ -442,7 +497,7 @@ class Graph:
         query = f"DROP INDEX ON :{label}({property_name})"
         return self.query(query)
     
-    def list_indexes(self) -> List[Dict[str, Any]]:
+    def list_indexes(self) -> list[Dict[str, Any]]:
         """
         List all indexes in the graph.
         
@@ -454,7 +509,7 @@ class Graph:
         # TODO: Implement if RedisGraph provides index listing procedure
         return []
 
-    def bulk_upsert(self, node_class: type[N], data: List[Dict[str, Any]], 
+    def bulk_upsert(self, node_class: type[N], data: list[Dict[str, Any]], 
                     batch_size: int = 1000) -> Optional[QueryResult]:
         """
         Bulk upsert nodes using UNWIND for efficient insertion.

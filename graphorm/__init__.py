@@ -12,6 +12,7 @@ from .exceptions import (
     ConnectionError,
 )
 from .select import select, aliased, Select
+from .delete import delete, Delete
 from .property import Property
 from .expression import (
     BinaryExpression,
@@ -20,6 +21,8 @@ from .expression import (
     OrderByExpression,
     Function,
     ArithmeticExpression,
+    CaseExpression,
+    RemoveExpression,
     count,
     sum,
     avg,
@@ -27,6 +30,11 @@ from .expression import (
     max,
     indegree,
     outdegree,
+    case,
+    size,
+    head,
+    tail,
+    last,
 )
 from .relationship import Relationship
 
@@ -47,6 +55,8 @@ __all__ = [
     "select",
     "aliased",
     "Select",
+    "delete",
+    "Delete",
     "Property",
     "BinaryExpression",
     "AndExpression",
@@ -54,6 +64,8 @@ __all__ = [
     "OrderByExpression",
     "Function",
     "ArithmeticExpression",
+    "CaseExpression",
+    "RemoveExpression",
     "count",
     "sum",
     "avg",
@@ -61,5 +73,10 @@ __all__ = [
     "max",
     "indegree",
     "outdegree",
+    "case",
+    "size",
+    "head",
+    "tail",
+    "last",
     "Relationship",
 ]

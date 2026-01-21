@@ -6,7 +6,7 @@ allowing lazy loading of related nodes when accessed.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Union, TypeVar, Generic
+from typing import TYPE_CHECKING, Union, TypeVar, Generic
 
 if TYPE_CHECKING:
     from .node import Node
@@ -38,7 +38,7 @@ class Relationship(Generic[N]):
         edge_name = edge_class.__name__ if isinstance(edge_class, type) else edge_class
         self._cache_attr = f"_cached_{edge_name}_{direction}"
     
-    def __get__(self, instance: Node, owner: type) -> List[N]:
+    def __get__(self, instance: Node, owner: type) -> list[N]:
         """
         Descriptor protocol: load related nodes when accessed.
         
@@ -62,7 +62,7 @@ class Relationship(Generic[N]):
         
         return related
     
-    def _load_related(self, instance: Node) -> List[N]:
+    def _load_related(self, instance: Node) -> list[N]:
         """
         Load related nodes via MATCH query.
         

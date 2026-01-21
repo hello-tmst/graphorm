@@ -211,6 +211,29 @@ class OrExpression:
         return f"({left_str} OR {right_str})"
 
 
+class RemoveExpression:
+    """Represents REMOVE clause expression."""
+    
+    def __init__(self, property_expr: Any):
+        """
+        Initialize REMOVE expression.
+        
+        :param property_expr: Property expression to remove
+        """
+        self.property_expr = property_expr
+    
+    def to_cypher(self, alias_map: Dict[Any, str] = None) -> str:
+        """
+        Generate REMOVE expression.
+        
+        :param alias_map: Optional mapping of node classes to aliases
+        :return: Cypher string for REMOVE clause
+        """
+        if hasattr(self.property_expr, 'to_cypher'):
+            return self.property_expr.to_cypher(alias_map=alias_map)
+        return str(self.property_expr)
+
+
 class OrderByExpression:
     """
     Represents ORDER BY expression for sorting.
@@ -528,3 +551,114 @@ def indegree(node: Any) -> Function:
 def outdegree(node: Any) -> Function:
     """outdegree function for nodes."""
     return Function("outdegree", node)
+
+
+class CaseExpression:
+    """Represents CASE WHEN THEN ELSE expression."""
+    
+    def __init__(self, when_then_pairs: list[tuple], else_value: Any = None):
+        """
+        Initialize CASE expression.
+        
+        :param when_then_pairs: List of (condition, value) tuples
+        :param else_value: Optional ELSE value
+        """
+        self.when_then_pairs = when_then_pairs
+        self.else_value = else_value
+    
+    def label(self, alias: str) -> "CaseExpression":
+        """Add alias to CASE result."""
+        self._label = alias
+        return self
+    
+    def to_cypher(self, params: Dict[str, Any] = None, alias_map: Dict[Any, str] = None) -> str:
+        """Generate CASE expression."""
+        if params is None:
+            params = {}
+        if alias_map is None:
+            alias_map = {}
+        
+        parts = ["CASE"]
+        
+        for condition, value in self.when_then_pairs:
+            # Format condition
+            if hasattr(condition, 'to_cypher'):
+                cond_str = condition.to_cypher(params, alias_map)
+            else:
+                cond_str = str(condition)
+            
+            # Format value
+            if hasattr(value, 'to_cypher'):
+                val_str = value.to_cypher(params, alias_map)
+            else:
+                # Use helper from BinaryExpression
+                param_name = self._add_param_to_dict(value, params)
+                val_str = f"${param_name}"
+            
+            parts.append(f"WHEN {cond_str} THEN {val_str}")
+        
+        if self.else_value is not None:
+            if hasattr(self.else_value, 'to_cypher'):
+                else_str = self.else_value.to_cypher(params, alias_map)
+            else:
+                param_name = self._add_param_to_dict(self.else_value, params)
+                else_str = f"${param_name}"
+            parts.append(f"ELSE {else_str}")
+        
+        parts.append("END")
+        
+        result = " ".join(parts)
+        if hasattr(self, '_label'):
+            result += f" AS {self._label}"
+        
+        return result
+    
+    def _add_param_to_dict(self, value: Any, params: Dict[str, Any]) -> str:
+        """Helper to add parameter (reuse logic from BinaryExpression)."""
+        # Check if value already exists in params to avoid duplicates
+        for existing_name, existing_value in params.items():
+            if existing_value == value:
+                return existing_name
+        
+        param_num = len(params)
+        param_name = f"param_{param_num}"
+        params[param_name] = value
+        return param_name
+
+
+def case(*when_then: tuple, else_: Any = None) -> CaseExpression:
+    """
+    Create CASE expression.
+    
+    Usage:
+        case(
+            (Page.error.is_not_null(), "high"),
+            (Page.parsed == False, "medium"),
+            else_="low"
+        )
+    
+    :param when_then: Variable number of (condition, value) tuples
+    :param else_: Optional ELSE value
+    :return: CaseExpression instance
+    """
+    return CaseExpression(list(when_then), else_)
+
+
+def size(collection: Any) -> Function:
+    """Cypher size() function for collections."""
+    return Function("SIZE", collection)
+
+
+def head(list_expr: Any) -> Function:
+    """Cypher head() function - returns first element of list."""
+    return Function("HEAD", list_expr)
+
+
+def tail(list_expr: Any) -> Function:
+    """Cypher tail() function - returns all but first element of list."""
+    return Function("TAIL", list_expr)
+
+
+def last(list_expr: Any) -> Function:
+    """Cypher last() function - returns last element of list."""
+    return Function("LAST", list_expr)

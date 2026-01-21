@@ -7,9 +7,13 @@ from graphorm.mixin import NodeMixin, EdgeMixin, GraphMixin
 from graphorm.drivers.redis import RedisDriver
 
 
-class TestDriver(NodeMixin, EdgeMixin, GraphMixin, RedisDriver):
+class _TestDriver(NodeMixin, EdgeMixin, GraphMixin, RedisDriver):
     """Test driver that combines all mixins with RedisDriver."""
     pass
+
+
+# Alias for backward compatibility in tests
+TestDriver = _TestDriver
 
 
 def test_node_mixin_get_existing_node(graph):

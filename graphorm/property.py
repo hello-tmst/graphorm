@@ -198,6 +198,15 @@ class Property(Generic[T]):
         from .expression import BinaryExpression
         return BinaryExpression(self, "IS NOT NULL", None)
     
+    def remove(self) -> "RemoveExpression":
+        """
+        Create REMOVE expression for this property.
+        
+        :return: RemoveExpression for use in REMOVE clause
+        """
+        from .expression import RemoveExpression
+        return RemoveExpression(self)
+    
     def asc(self) -> "OrderByExpression":
         """
         ASC ordering: property ASC
