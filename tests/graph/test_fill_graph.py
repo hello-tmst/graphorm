@@ -1,5 +1,8 @@
 def test_fill_graph(graph):
-    from graphorm import Node, Edge
+    from graphorm import (
+        Edge,
+        Node,
+    )
 
     class Page(Node):
         __primary_key__ = ["path", "parsed"]
@@ -16,19 +19,9 @@ def test_fill_graph(graph):
     class Linked(Edge):
         pass
 
-    graph.add_node(
-        page_node_0 := Page(
-            path="0",
-            parsed=False
-        )
-    )
+    graph.add_node(page_node_0 := Page(path="0", parsed=False))
 
-    graph.add_node(
-        page_node_1 := Page(
-            path="1",
-            parsed=False
-        )
-    )
+    graph.add_node(page_node_1 := Page(path="1", parsed=False))
 
     graph.add_edge(Linked(page_node_0, page_node_1))
 
@@ -45,9 +38,7 @@ def test_fill_graph(graph):
 
     assert graph.add_node(page_node_1) == 0
 
-    result = graph.query(
-        "MATCH (p:Page), (w:Website) RETURN p, w"
-    )
+    result = graph.query("MATCH (p:Page), (w:Website) RETURN p, w")
 
     # for packs in result.result_set:
     #     for item in packs:

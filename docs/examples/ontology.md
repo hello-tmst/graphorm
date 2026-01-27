@@ -10,12 +10,12 @@ from graphorm import Node, Edge, Graph, select, Relationship
 class Entity(Node):
     __primary_key__ = ["entity_id"]
     __indexes__ = ["entity_id", "name", "type"]
-    
+
     entity_id: str
     name: str = ""
     type: str = ""  # Person, Organization, Concept, etc.
     description: str = ""
-    
+
     # Ленивая загрузка связей
     related_entities = Relationship("RELATES_TO", direction="both")
     instances = Relationship("INSTANCE_OF", direction="outgoing")
@@ -59,16 +59,16 @@ with graph.transaction() as tx:
     tx.add_node(company)
     tx.add_node(alice)
     tx.add_node(acme_corp)
-    
+
     # Иерархия: Company является подклассом Organization
     tx.add_edge(SUBCLASS_OF(company, organization))
-    
+
     # Alice является экземпляром Person
     tx.add_edge(INSTANCE_OF(alice, person))
-    
+
     # Acme Corp является экземпляром Company
     tx.add_edge(INSTANCE_OF(acme_corp, company))
-    
+
     # Alice работает в Acme Corp
     tx.add_edge(RELATES_TO(alice, acme_corp, relation_type="works_at", strength=0.9))
 ```
@@ -168,7 +168,7 @@ stmt = select().match(
     (PersonInstance, RELATES_TO.alias("r"), CompanyInstance),
     (CompanyInstance, INSTANCE_OF.alias("i2"), CompanyConcept)
 ).where(
-    (PersonConcept.entity_id == "Person") & 
+    (PersonConcept.entity_id == "Person") &
     (RELATES_TO.alias("r").relation_type == "works_at")
 ).returns(
     CompanyInstance
@@ -253,16 +253,16 @@ with graph.transaction() as tx:
     mammal = Entity(entity_id="Mammal", name="Mammal", type="Concept")
     dog = Entity(entity_id="Dog", name="Dog", type="Concept")
     my_dog = Entity(entity_id="buddy_001", name="Buddy", type="Dog")
-    
+
     tx.add_node(animal)
     tx.add_node(mammal)
     tx.add_node(dog)
     tx.add_node(my_dog)
-    
+
     # Иерархия: Mammal -> Animal, Dog -> Mammal
     tx.add_edge(SUBCLASS_OF(mammal, animal))
     tx.add_edge(SUBCLASS_OF(dog, mammal))
-    
+
     # Buddy является экземпляром Dog
     tx.add_edge(INSTANCE_OF(my_dog, dog))
 

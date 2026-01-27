@@ -1,10 +1,14 @@
 import json
 from logging import getLogger
 
-from .registry import Registry
-from .utils import quote_string, random_string, format_cypher_value
-from .node import Node
 from .common import Common
+from .node import Node
+from .registry import Registry
+from .utils import (
+    format_cypher_value,
+    format_pk_cypher_map,
+    random_string,
+)
 
 logger = getLogger(__file__)
 
@@ -12,7 +16,9 @@ logger = getLogger(__file__)
 class Edge(Common):
     __slots__ = {"__alias__", "__relation__", "src_node", "dst_node"}
 
-    def __new__(cls, src_node: Node, dst_node: Node, *, _id: int = None, **kwargs) -> Common:
+    def __new__(
+        cls, src_node: Node, dst_node: Node, *, _id: int = None, **kwargs
+    ) -> Common:
         obj = super().__new__(cls, **kwargs)
 
         if src_node is None or dst_node is None:
@@ -29,61 +35,53 @@ class Edge(Common):
         if hasattr(cls, "__relation_name__"):
             relation = cls.__relation_name__
             if not relation or not isinstance(relation, str):
-                raise ValueError(f"__relation_name__ must be a non-empty string for class {cls.__name__}")
+                raise ValueError(
+                    f"__relation_name__ must be a non-empty string for class {cls.__name__}"
+                )
         else:
             relation = cls.__name__
-        
+
         setattr(cls, "__relation__", relation)
         Registry.add_edge_relation(cls)
-        
+
         # Create Property descriptors for all annotated properties
         from .property import Property
+
         if hasattr(cls, "__annotations__"):
             for prop_name in cls.__annotations__:
                 # Skip internal attributes
                 if not prop_name.startswith("__"):
                     # Create Property descriptor
                     setattr(cls, prop_name, Property(cls, prop_name))
-    
+
     @classmethod
     def _alias_classmethod(cls, name: str) -> type:
         """
         Create an aliased version of this Edge class for use in queries.
-        
+
         :param name: Alias name for the edge in queries
         :return: Aliased Edge class with _alias attribute set
         """
+
         # Create a simple subclass with alias attribute
         # __init_subclass__ will be called automatically, creating Property descriptors
         class AliasedEdge(cls):
             _alias = name
-        
+
         # Ensure __relation__ is copied
-        if hasattr(cls, '__relation__'):
+        if hasattr(cls, "__relation__"):
             AliasedEdge.__relation__ = cls.__relation__
-        
+
         # Set alias as class attribute
         AliasedEdge._alias = name
         AliasedEdge.__name__ = f"Aliased{cls.__name__}"
         AliasedEdge.__qualname__ = f"Aliased{cls.__qualname__}"
-        
+
         # Property descriptors are automatically created in __init_subclass__
         # with node_class=AliasedEdge, so they should work correctly
         # The Property.__get__ method will use the owner class (AliasedEdge) and its _alias
-        
+
         return AliasedEdge
-    
-    class _AliasDescriptor:
-        """Descriptor that handles both classmethod and instance property for alias."""
-        def __get__(self, obj, owner):
-            if obj is None:
-                # Accessed on class - return the classmethod
-                return owner._alias_classmethod
-            else:
-                # Accessed on instance - return the instance's alias
-                return obj.__alias__
-    
-    alias = _AliasDescriptor()
 
     def set_alias(self, alias: str) -> None:
         """
@@ -121,7 +119,9 @@ class Edge(Common):
         res += f"{self.alias}:{self.relation}"
         if self.properties:
             props = ",".join(
-                f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
+                f"{k}:{format_cypher_value(v)}"
+                for k, v in sorted(self.properties.items())
+                if v is not None
             )
             res += "{" + props + "}"
         res += "]->"
@@ -145,42 +145,20 @@ class Edge(Common):
             # Build MATCH patterns for nodes using primary keys
             src_labels = ":".join(self.src_node.labels)
             dst_labels = ":".join(self.dst_node.labels)
-            
-            # Build source node pattern
-            if isinstance(self.src_node.__primary_key__, str):
-                pk = self.src_node.__primary_key__
-                src_pattern = f"{{ {pk}: {format_cypher_value(self.src_node.properties[pk])} }}"
-            elif isinstance(self.src_node.__primary_key__, list):
-                props = ",".join(
-                    f"{pk}:{format_cypher_value(self.src_node.properties[pk])}" 
-                    for pk in self.src_node.__primary_key__
-                )
-                src_pattern = f"{{ {props} }}"
-            else:
-                src_pattern = ""
-            
-            # Build destination node pattern
-            if isinstance(self.dst_node.__primary_key__, str):
-                pk = self.dst_node.__primary_key__
-                dst_pattern = f"{{ {pk}: {format_cypher_value(self.dst_node.properties[pk])} }}"
-            elif isinstance(self.dst_node.__primary_key__, list):
-                props = ",".join(
-                    f"{pk}:{format_cypher_value(self.dst_node.properties[pk])}" 
-                    for pk in self.dst_node.__primary_key__
-                )
-                dst_pattern = f"{{ {props} }}"
-            else:
-                dst_pattern = ""
-            
+            src_pattern = format_pk_cypher_map(self.src_node)
+            dst_pattern = format_pk_cypher_map(self.dst_node)
+
             # Build edge pattern
             edge_pattern = f"-[{self.alias}:{self.relation}"
             if self.properties:
                 props = ",".join(
-                    f"{k}:{quote_string(v)}" for k, v in sorted(self.properties.items()) if v is not None
+                    f"{k}:{format_cypher_value(v)}"
+                    for k, v in sorted(self.properties.items())
+                    if v is not None
                 )
                 edge_pattern += "{" + props + "}"
             edge_pattern += "]->"
-            
+
             # MATCH nodes by primary key, then MERGE edge (to avoid duplicates)
             src_var = "src"
             dst_var = "dst"
@@ -218,4 +196,6 @@ class Edge(Common):
         return True
 
     def __hash__(self) -> int:
-        return hash((self.relation, self.src_node, self.dst_node, json.dumps(self.properties)))
+        return hash(
+            (self.relation, self.src_node, self.dst_node, json.dumps(self.properties))
+        )

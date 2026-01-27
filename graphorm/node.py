@@ -1,16 +1,27 @@
 import json
-from typing import Any
 from logging import getLogger
+from typing import Any
 
-from .registry import Registry
 from .common import Common
-from .utils import quote_string, random_string, format_cypher_value
+from .registry import Registry
+from .utils import (
+    format_cypher_value,
+    format_pk_cypher_map,
+    get_pk_fields,
+    random_string,
+)
 
 logger = getLogger(__file__)
 
 
 class Node(Common):
-    __slots__ = {"__graph__", "__relations__", "__alias__", "__primary_key__", "__labels__"}
+    __slots__ = {
+        "__graph__",
+        "__relations__",
+        "__alias__",
+        "__primary_key__",
+        "__labels__",
+    }
 
     def __new__(cls, _id: int = None, **kwargs) -> Common:
         """
@@ -30,81 +41,72 @@ class Node(Common):
         if hasattr(cls, "__label__"):
             label = cls.__label__
             if not label or not isinstance(label, str):
-                raise ValueError(f"__label__ must be a non-empty string for class {cls.__name__}")
+                raise ValueError(
+                    f"__label__ must be a non-empty string for class {cls.__name__}"
+                )
         else:
             label = cls.__name__
-        
+
         setattr(cls, "__labels__", {label})
         Registry.add_node_label(cls)
-        
+
         # Create Property descriptors for all annotated properties
         from .property import Property
+
         if hasattr(cls, "__annotations__"):
             for prop_name in cls.__annotations__:
                 # Skip internal attributes
                 if not prop_name.startswith("__"):
                     # Create Property descriptor
                     setattr(cls, prop_name, Property(cls, prop_name))
-    
+
     @classmethod
     def _alias_classmethod(cls, name: str) -> type:
         """
         Create an aliased version of this Node class for use in queries.
-        
+
         :param name: Alias name for the node in queries
         :return: Aliased Node class with _alias attribute set
         """
+
         # Create a simple subclass with alias attribute
         # __init_subclass__ will be called automatically, creating Property descriptors
         class AliasedNode(cls):
             _alias = name
-        
+
         # Ensure __labels__ is copied
-        if hasattr(cls, '__labels__'):
+        if hasattr(cls, "__labels__"):
             AliasedNode.__labels__ = cls.__labels__
-        
+
         # Set alias as class attribute
         AliasedNode._alias = name
         AliasedNode.__name__ = f"Aliased{cls.__name__}"
         AliasedNode.__qualname__ = f"Aliased{cls.__qualname__}"
-        
+
         # Property descriptors are automatically created in __init_subclass__
         # with node_class=AliasedNode, so they should work correctly
         # The Property.__get__ method will use the owner class (AliasedNode) and its _alias
-        
+
         return AliasedNode
-    
-    class _AliasDescriptor:
-        """Descriptor that handles both classmethod and instance property for alias."""
-        def __get__(self, obj, owner):
-            if obj is None:
-                # Accessed on class - return the classmethod
-                return owner._alias_classmethod
-            else:
-                # Accessed on instance - return the instance's alias
-                return obj.__alias__
-    
-    alias = _AliasDescriptor()
-    
+
     @classmethod
     def create_index(cls, property_name: str, graph: "Graph") -> "QueryResult":
         """
         Create an index on a property for this Node class.
-        
+
         :param property_name: Name of the property to index
         :param graph: Graph instance to create the index on
         :return: QueryResult object
         """
-        from .query_result import QueryResult
-        
+
         # Get label for this node class
-        if hasattr(cls, '__labels__'):
+        if hasattr(cls, "__labels__"):
             label = list(cls.__labels__)[0]
-        elif hasattr(cls, '__label__'):
+        elif hasattr(cls, "__label__"):
             label = cls.__label__
         else:
             label = cls.__name__
-        
+
         query = f"CREATE INDEX ON :{label}({property_name})"
         return graph.query(query)
 
@@ -141,12 +143,9 @@ class Node(Common):
         """
         res = "("
         res += ":".join([self.alias, *self.labels])
-        if isinstance(self.__primary_key__, str):
-            pk = self.__primary_key__
-            res += "{" + f"{pk}:{format_cypher_value(self.properties[pk])}" + "}"
-        elif isinstance(self.__primary_key__, list):
-            props = ",".join(f"{pk}:{format_cypher_value(self.properties[pk])}" for pk in self.__primary_key__)
-            res += "{" + props + "}"
+        pk_map = format_pk_cypher_map(self)
+        if pk_map:
+            res += pk_map
         res += ")"
         return res
 
@@ -175,24 +174,24 @@ class Node(Common):
     def merge(self) -> str:
         """
         Generate MERGE query for the node.
-        
+
         Uses ON CREATE SET and ON MATCH SET to ensure properties are set
         both when creating new nodes and when updating existing ones.
 
         :return: MERGE query string
         """
         pk_pattern = self.__str_pk__()
-        
+
         # Build SET clauses for all properties (excluding primary key properties)
         set_clauses = []
-        pk_set = set(self.__primary_key__ if isinstance(self.__primary_key__, list) else [self.__primary_key__])
-        
+        pk_set = set(get_pk_fields(self))
+
         for k, v in sorted(self.properties.items()):
             # Skip primary key properties in SET (they're already in MERGE pattern)
             if k not in pk_set:
                 if v is not None:
                     set_clauses.append(f"{self.alias}.{k}={format_cypher_value(v)}")
-        
+
         if set_clauses:
             set_clause = ", ".join(set_clauses)
             # Use ON CREATE SET and ON MATCH SET to ensure properties are set in both cases

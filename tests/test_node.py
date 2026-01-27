@@ -1,6 +1,3 @@
-import logging
-
-
 def test_node():
     from graphorm.node import Node
 

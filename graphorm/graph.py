@@ -1,28 +1,46 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Optional, Dict, Any, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Optional,
+    TypeVar,
+    Union,
+)
 
 import redis
 
-from .node import Node
 from .edge import Edge
-from .types import CMD
+from .node import Node
 from .query_result import QueryResult
-from .utils import quote_string, format_cypher_value
+from .types import CMD
+from .utils import (
+    format_cypher_value,
+    get_pk_fields,
+    quote_string,
+)
 
 if TYPE_CHECKING:
+    from graphorm.delete import Delete
     from graphorm.drivers.base import Driver
     from graphorm.select import Select
-    from graphorm.delete import Delete
 
 logger = getLogger(__file__)
 
-N = TypeVar('N', bound=Node)
+N = TypeVar("N", bound=Node)
 
 
 class Graph:
-    __slots__ = {"_name", "_nodes", "_edges", "_labels", "_property_keys", "_relationship_types", "_driver"}
+    __slots__ = {
+        "_name",
+        "_nodes",
+        "_edges",
+        "_labels",
+        "_property_keys",
+        "_relationship_types",
+        "_driver",
+    }
 
     def __init__(
         self,
@@ -34,7 +52,7 @@ class Graph:
     ):
         """
         Initialize a Graph instance.
-        
+
         :param name: Name of the graph
         :param connection: Redis connection object (optional)
         :param host: Redis host (required if connection not provided)
@@ -42,22 +60,23 @@ class Graph:
         :param password: Redis password (optional)
         """
         self._name: str = name  # Graph key
-        
+
         # Initialize driver
         from .drivers.redis import RedisDriver
+
         if connection:
             # Extract connection parameters if available
             try:
                 conn_kwargs = connection.connection_pool.connection_kwargs
-                driver_host = conn_kwargs.get('host', 'localhost')
-                driver_port = conn_kwargs.get('port', 6379)
-                driver_password = conn_kwargs.get('password')
+                driver_host = conn_kwargs.get("host", "localhost")
+                driver_port = conn_kwargs.get("port", 6379)
+                driver_password = conn_kwargs.get("password")
             except AttributeError:
                 # Fallback if connection_pool structure is different
-                driver_host = 'localhost'
+                driver_host = "localhost"
                 driver_port = 6379
                 driver_password = None
-            
+
             self._driver = RedisDriver(driver_host, driver_port, driver_password)
             self._driver.connection = connection
         elif host:
@@ -68,13 +87,13 @@ class Graph:
         # Initialize collections
         self._nodes: dict[str, Node] = {}  # Dictionary of nodes by alias
         self._edges: dict[str, Edge] = {}  # Dictionary of edges by alias
-        
+
         # Schema metadata
         self._labels: list[str] = []  # List of node labels.
         self._property_keys: list[str] = []  # List of property keys.
         self._relationship_types: list[str] = []  # List of relationship types.
         # self.version = 0  # Graph version
-    
+
     @property
     def driver(self) -> "Driver":
         """Get the driver instance."""
@@ -134,7 +153,7 @@ class Graph:
             if node == existing_node:
                 # Node already exists, return 0
                 return 0
-        
+
         # New node, add it
         self._nodes[node.alias] = node
         return 1
@@ -151,29 +170,35 @@ class Graph:
             self.add_node(edge.src_node)
         if edge.dst_node.alias not in self._nodes:
             self.add_node(edge.dst_node)
-        
+
         # Check if edge already exists
         for existing_edge in self._edges.values():
             if edge == existing_edge:
                 # Edge already exists, return 0
                 return 0
-        
+
         # New edge, add it
         self._edges[edge.alias] = edge
         return 1
 
     def _refresh_labels(self) -> list[str]:
-        result = self._driver.call_procedure(self._name, "db.labels", read_only=True, graph=self)
+        result = self._driver.call_procedure(
+            self._name, "db.labels", read_only=True, graph=self
+        )
         self._labels = self._unpack(result.result_set)
         return self._labels
 
     def _refresh_property_keys(self) -> list[str]:
-        result = self._driver.call_procedure(self._name, "db.propertyKeys", read_only=True, graph=self)
+        result = self._driver.call_procedure(
+            self._name, "db.propertyKeys", read_only=True, graph=self
+        )
         self._property_keys = self._unpack(result.result_set)
         return self._property_keys
 
     def _refresh_relationship_types(self) -> list[str]:
-        result = self._driver.call_procedure(self._name, "db.relationshipTypes", read_only=True, graph=self)
+        result = self._driver.call_procedure(
+            self._name, "db.relationshipTypes", read_only=True, graph=self
+        )
         self._relationship_types = self._unpack(result.result_set)
         return self._relationship_types
 
@@ -214,7 +239,7 @@ class Graph:
     def query(
         self,
         q: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         timeout: Optional[int] = None,
         read_only: bool = False,
     ) -> QueryResult:
@@ -227,30 +252,39 @@ class Graph:
         :param read_only: Execute as read-only query if set to True
         :return: QueryResult object
         """
-        result = self._driver.query(CMD.QUERY, self._name, q, params, timeout, read_only, graph=self)
+        result = self._driver.query(
+            CMD.QUERY, self._name, q, params, timeout, read_only, graph=self
+        )
         return result
-    
-    def execute(self, stmt: Union["Select", "Delete"], read_only: bool = False, timeout: Optional[int] = None) -> QueryResult:
+
+    def execute(
+        self,
+        stmt: Union["Select", "Delete"],
+        read_only: bool = False,
+        timeout: Optional[int] = None,
+    ) -> QueryResult:
         """
         Execute a Select or Delete statement.
-        
+
         :param stmt: Select or Delete statement object
         :param read_only: Execute as read-only query if set to True (ignored for Delete)
         :param timeout: Maximum runtime for read queries in milliseconds
         :return: QueryResult object
         """
         from .delete import Delete
-        
+
         cypher = stmt.to_cypher()
         params = stmt.get_params()
         # Delete statements are always write operations
         actual_read_only = read_only and not isinstance(stmt, Delete)
-        return self.query(cypher, params=params, read_only=actual_read_only, timeout=timeout)
-    
+        return self.query(
+            cypher, params=params, read_only=actual_read_only, timeout=timeout
+        )
+
     def delete_node(self, node: Node, detach: bool = False) -> QueryResult:
         """
         Delete a node from the graph.
-        
+
         :param node: Node instance to delete
         :param detach: If True, use DETACH DELETE (removes all relationships)
         :return: QueryResult object
@@ -259,11 +293,11 @@ class Graph:
         delete_keyword = "DETACH DELETE" if detach else "DELETE"
         query = f"MATCH {pk_pattern} {delete_keyword} {node.alias}"
         return self.query(query)
-    
+
     def delete_edge(self, edge: Edge) -> QueryResult:
         """
         Delete an edge from the graph.
-        
+
         :param edge: Edge instance to delete
         :return: QueryResult object
         """
@@ -274,7 +308,24 @@ class Graph:
         query = f"MATCH {src_pattern}-{edge_pattern}->{dst_pattern} DELETE {edge.alias}"
         return self.query(query)
 
-    def update_node(self, node: Node, properties: dict = None, remove: list[str] = None) -> QueryResult:
+    def _find_cached_node_by_pk(self, node: Node) -> Node | None:
+        """Find a node in the local cache by alias or by primary key."""
+        if node.alias in self._nodes:
+            return self._nodes[node.alias]
+        pk_fields = get_pk_fields(node)
+        if not pk_fields:
+            return None
+        for cached_node in self._nodes.values():
+            cached_pk_fields = get_pk_fields(cached_node)
+            if cached_pk_fields == pk_fields and all(
+                cached_node.properties.get(f) == node.properties.get(f) for f in pk_fields
+            ):
+                return cached_node
+        return None
+
+    def update_node(
+        self, node: Node, properties: dict = None, remove: list[str] = None
+    ) -> QueryResult:
         """
         Update properties of a node in the graph.
 
@@ -285,26 +336,16 @@ class Graph:
         """
         if properties is None:
             properties = {}
-        
+
         # Ensure node has all required properties for primary key lookup
-        # If node was retrieved from graph, it might be missing some properties
-        # We need to ensure primary key properties are present
-        if hasattr(node, '__primary_key__'):
-            if isinstance(node.__primary_key__, str):
-                pk = node.__primary_key__
-                if pk not in node.properties:
-                    logger.warning(
-                        f"update_node: Primary key '{pk}' not in node properties. "
-                        f"Node properties: {node.properties}"
-                    )
-            elif isinstance(node.__primary_key__, list):
-                for pk in node.__primary_key__:
-                    if pk not in node.properties:
-                        logger.warning(
-                            f"update_node: Primary key '{pk}' not in node properties. "
-                            f"Node properties: {node.properties}"
-                        )
-        
+        pk_fields = get_pk_fields(node)
+        for pk in pk_fields:
+            if pk not in node.properties:
+                logger.warning(
+                    f"update_node: Primary key '{pk}' not in node properties. "
+                    f"Node properties: {node.properties}"
+                )
+
         # Generate SET clause
         set_clauses = []
         if properties:
@@ -313,29 +354,29 @@ class Graph:
                 if value is not None:
                     value_str = format_cypher_value(value)
                     set_clauses.append(f"{node.alias}.{key}={value_str}")
-        
+
         # Generate REMOVE clause
         remove_clauses = []
         if remove:
             for prop_name in remove:
                 remove_clauses.append(f"{node.alias}.{prop_name}")
-        
+
         if not set_clauses and not remove_clauses:
             raise ValueError("No properties to update or remove")
-        
+
         # Generate query - use node alias in MATCH to ensure we find the right node
         pk_pattern = node.__str_pk__()
         query_parts = [f"MATCH {pk_pattern}"]
-        
+
         if set_clauses:
             query_parts.append(f"SET {', '.join(set_clauses)}")
-        
+
         if remove_clauses:
             query_parts.append(f"REMOVE {', '.join(remove_clauses)}")
-        
+
         query_parts.append(f"RETURN {node.alias}")
         query = " ".join(query_parts)
-        
+
         # Log query for debugging
         logger.debug(f"update_node query: {query}")
         logger.debug(f"update_node node properties: {node.properties}")
@@ -344,12 +385,12 @@ class Graph:
             logger.debug(f"update_node update properties: {properties}")
         if remove:
             logger.debug(f"update_node remove properties: {remove}")
-        
+
         # Execute query
         result = self.query(query)
-        
+
         # Check if node was found and updated
-        if hasattr(result, 'result_set') and len(result.result_set) == 0:
+        if hasattr(result, "result_set") and len(result.result_set) == 0:
             logger.error(
                 f"update_node: Node not found for update. "
                 f"Query: {query}, "
@@ -369,10 +410,10 @@ class Graph:
                 )
             else:
                 logger.error(f"update_node: Node does not exist in graph at all.")
-        
+
         # Check if update was successful by verifying properties_set in statistics
-        if hasattr(result, 'statistics') and 'Properties set' in result.statistics:
-            properties_set = result.statistics.get('Properties set', 0)
+        if hasattr(result, "statistics") and "Properties set" in result.statistics:
+            properties_set = result.statistics.get("Properties set", 0)
             if properties_set == 0:
                 logger.error(
                     f"update_node: No properties were set. "
@@ -382,46 +423,16 @@ class Graph:
                     f"Result statistics: {result.statistics}"
                 )
             else:
-                logger.debug(f"update_node: Successfully set {properties_set} properties")
-        
+                logger.debug(
+                    f"update_node: Successfully set {properties_set} properties"
+                )
+
         # Update local node if it exists in cache
-        # But also check by primary key, as node from graph may have different alias
-        if node.alias in self._nodes:
-            self._nodes[node.alias].update(properties)
-        else:
-            # Try to find node in cache by primary key and update it
-            # This is important when updating a node retrieved from graph (different alias)
-            if hasattr(node, '__primary_key__'):
-                if isinstance(node.__primary_key__, str):
-                    pk = node.__primary_key__
-                    pk_value = node.properties.get(pk)
-                    if pk_value is not None:
-                        for cached_alias, cached_node in self._nodes.items():
-                            if (hasattr(cached_node, '__primary_key__') and 
-                                isinstance(cached_node.__primary_key__, str) and
-                                cached_node.__primary_key__ == pk and
-                                cached_node.properties.get(pk) == pk_value):
-                                # Found node by primary key, update it
-                                cached_node.update(properties)
-                                logger.debug(f"update_node: Updated cached node by primary key {pk}={pk_value}")
-                                break
-                elif isinstance(node.__primary_key__, list):
-                    # For composite primary keys, check all key values match
-                    for cached_alias, cached_node in self._nodes.items():
-                        if hasattr(cached_node, '__primary_key__'):
-                            if isinstance(cached_node.__primary_key__, list):
-                                # Check if all primary key values match
-                                match = True
-                                for pk in node.__primary_key__:
-                                    if cached_node.properties.get(pk) != node.properties.get(pk):
-                                        match = False
-                                        break
-                                if match:
-                                    # Found node by primary key, update it
-                                    cached_node.update(properties)
-                                    logger.debug(f"update_node: Updated cached node by composite primary key")
-                                    break
-        
+        cached = self._find_cached_node_by_pk(node)
+        if cached is not None:
+            cached.update(properties)
+            logger.debug("update_node: Updated cached node")
+
         return result
 
     def get_node(self, node: Node) -> Node | None:
@@ -436,6 +447,7 @@ class Graph:
         if len(result.result_set) > 0:
             found_node = result.result_set[0][0]
             found_node.set_alias(node.alias)
+            # __graph__ is already set by QueryResult.parse_node()
             return found_node
         return None
 
@@ -463,44 +475,46 @@ class Graph:
         :return: QueryResult object
         """
         result = self._driver.query(CMD.QUERY, self._name, "RETURN 0", timeout=timeout)
-        
+
         # Automatically create indexes for all Node classes with __indexes__ attribute
         self.create_all_indexes()
-        
+
         return result
-    
+
     def create_all_indexes(self) -> None:
         """
         Create all indexes defined in Node classes with __indexes__ attribute.
         """
         from .registry import Registry
-        
+
         # Get all registered node classes
         for label, node_class in Registry.__dict__.items():
-            if isinstance(node_class, type) and hasattr(node_class, '__indexes__'):
+            if isinstance(node_class, type) and hasattr(node_class, "__indexes__"):
                 indexes = node_class.__indexes__
                 if isinstance(indexes, list):
                     for prop_name in indexes:
                         try:
                             node_class.create_index(prop_name, self)
                         except Exception as e:
-                            logger.warning(f"Failed to create index on {label}.{prop_name}: {e}")
-    
+                            logger.warning(
+                                f"Failed to create index on {label}.{prop_name}: {e}"
+                            )
+
     def drop_index(self, label: str, property_name: str) -> QueryResult:
         """
         Drop an index on a property for a node label.
-        
+
         :param label: Node label
         :param property_name: Property name
         :return: QueryResult object
         """
         query = f"DROP INDEX ON :{label}({property_name})"
         return self.query(query)
-    
-    def list_indexes(self) -> list[Dict[str, Any]]:
+
+    def list_indexes(self) -> list[dict[str, Any]]:
         """
         List all indexes in the graph.
-        
+
         :return: List of index information dictionaries
         """
         # RedisGraph/FalkorDB doesn't have a direct way to list indexes
@@ -509,11 +523,12 @@ class Graph:
         # TODO: Implement if RedisGraph provides index listing procedure
         return []
 
-    def bulk_upsert(self, node_class: type[N], data: list[Dict[str, Any]], 
-                    batch_size: int = 1000) -> Optional[QueryResult]:
+    def bulk_upsert(
+        self, node_class: type[N], data: list[dict[str, Any]], batch_size: int = 1000
+    ) -> Optional[QueryResult]:
         """
         Bulk upsert nodes using UNWIND for efficient insertion.
-        
+
         :param node_class: Node class to upsert
         :param data: List of property dictionaries
         :param batch_size: Number of nodes per batch (default: 1000)
@@ -521,17 +536,17 @@ class Graph:
         """
         if not data:
             return None
-        
+
         # Get label for the node class
-        if hasattr(node_class, '__labels__'):
+        if hasattr(node_class, "__labels__"):
             label = list(node_class.__labels__)[0]
-        elif hasattr(node_class, '__label__'):
+        elif hasattr(node_class, "__label__"):
             label = node_class.__label__
         else:
             label = node_class.__name__
-        
+
         # Get primary key
-        if hasattr(node_class, '__primary_key__'):
+        if hasattr(node_class, "__primary_key__"):
             pk = node_class.__primary_key__
             if isinstance(pk, str):
                 pk_fields = [pk]
@@ -539,16 +554,16 @@ class Graph:
                 pk_fields = pk
         else:
             pk_fields = []
-        
+
         last_result = None
-        
+
         # Process in batches
         for i in range(0, len(data), batch_size):
-            batch = data[i:i + batch_size]
-            
+            batch = data[i : i + batch_size]
+
             # Build UNWIND query
             # Format: UNWIND $nodes AS n MERGE (p:Label {pk1: n.pk1, pk2: n.pk2}) SET p.prop1 = n.prop1, ...
-            
+
             # Build MERGE pattern with primary key
             if pk_fields:
                 merge_pattern_parts = []
@@ -558,7 +573,7 @@ class Graph:
             else:
                 # No primary key - use all properties for MERGE
                 merge_pattern = ""
-            
+
             # Build SET clause for all properties
             set_clauses = []
             # Get all property names from first item in batch (assuming all have same structure)
@@ -568,7 +583,7 @@ class Graph:
                 props_to_set = all_props - set(pk_fields)
                 for prop in sorted(props_to_set):
                     set_clauses.append(f"p.{prop} = n.{prop}")
-            
+
             # Build query
             if pk_fields:
                 if set_clauses:
@@ -582,13 +597,13 @@ class Graph:
                 else:
                     # No properties to set - just create nodes
                     query = f"UNWIND $nodes AS n CREATE (p:{label})"
-            
+
             # Execute with batch data as parameter
             params = {"nodes": batch}
             last_result = self.query(query, params=params)
-        
+
         return last_result
-    
+
     def delete(self) -> QueryResult:
         """
         Delete the graph from the database.
@@ -600,11 +615,11 @@ class Graph:
     def transaction(self) -> "Transaction":
         """
         Create a transaction context manager for grouping operations.
-        
+
         :return: Transaction instance
         """
         return Transaction(self)
-    
+
     @staticmethod
     def _unpack(result_set: list[list[str]]) -> list[str]:
         result: list[str | None] = [None] * len(result_set)
@@ -616,44 +631,44 @@ class Graph:
 class Transaction:
     """
     Transaction context manager for grouping graph operations.
-    
+
     Automatically flushes changes when exiting the context (if no exception occurred).
     """
-    
+
     def __init__(self, graph: Graph):
         """
         Initialize transaction.
-        
+
         :param graph: Graph instance
         """
         self.graph = graph
         self._nodes: list[Node] = []
         self._edges: list[Edge] = []
-    
+
     def add_node(self, node: Node) -> "Transaction":
         """
         Add a node to the transaction.
-        
+
         :param node: Node instance to add
         :return: Self for chaining
         """
         self._nodes.append(node)
         return self
-    
+
     def add_edge(self, edge: Edge) -> "Transaction":
         """
         Add an edge to the transaction.
-        
+
         :param edge: Edge instance to add
         :return: Self for chaining
         """
         self._edges.append(edge)
         return self
-    
+
     def flush(self, batch_size: int = 50) -> QueryResult:
         """
         Flush all pending changes in the transaction.
-        
+
         :param batch_size: Number of items to commit per batch
         :return: QueryResult object
         """
@@ -662,20 +677,20 @@ class Transaction:
             self.graph.add_node(node)
         for edge in self._edges:
             self.graph.add_edge(edge)
-        
+
         # Flush graph
         result = self.graph.flush(batch_size=batch_size)
-        
+
         # Clear transaction lists
         self._nodes.clear()
         self._edges.clear()
-        
+
         return result
-    
+
     def __enter__(self) -> "Transaction":
         """Enter transaction context."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit transaction context, flush if no exception."""
         if exc_type is None:

@@ -291,7 +291,7 @@ def test_boolean_field_in_query_after_update(graph):
 
 def test_update_node_without_flush_immediately_visible(graph):
     """Test that update_node changes are immediately visible without explicit flush.
-    
+
     Note: update_node executes a direct Cypher query, so changes should be
     persisted immediately. However, we still flush to ensure consistency.
     """
@@ -321,7 +321,10 @@ def test_update_node_without_flush_immediately_visible(graph):
 
 def test_boolean_field_persistence_across_graph_operations(graph):
     """Test that boolean field values persist across multiple graph operations."""
-    from graphorm import Node, Edge
+    from graphorm import (
+        Edge,
+        Node,
+    )
 
     class Page(Node):
         __primary_key__ = ["path"]
@@ -335,7 +338,7 @@ def test_boolean_field_persistence_across_graph_operations(graph):
     # Create pages
     page1 = Page(path="/page1", parsed=False)
     page2 = Page(path="/page2", parsed=False)
-    
+
     graph.add_node(page1)
     graph.add_node(page2)
     graph.flush()
@@ -351,14 +354,14 @@ def test_boolean_field_persistence_across_graph_operations(graph):
     # Verify boolean values are still correct after edge addition
     retrieved1 = graph.get_node(Page(path="/page1"))
     retrieved2 = graph.get_node(Page(path="/page2"))
-    
+
     assert retrieved1.parsed is True
     assert retrieved2.parsed is False
 
 
 def test_update_node_retrieved_from_graph(graph):
     """Test updating a node that was retrieved from the graph (not created locally).
-    
+
     This is important because nodes retrieved from graph may have different
     aliases than locally created nodes.
     """
@@ -403,7 +406,7 @@ def test_update_node_via_query_result(graph):
     # Create multiple pages
     page1 = Page(path="/page1", parsed=False)
     page2 = Page(path="/page2", parsed=False)
-    
+
     graph.add_node(page1)
     graph.add_node(page2)
     graph.flush()
@@ -416,7 +419,7 @@ def test_update_node_via_query_result(graph):
     """
     result = graph.query(query)
     assert len(result.result_set) == 1
-    
+
     # Get node from query result
     queried_page = result.result_set[0][0]
     assert queried_page.path == "/page1"

@@ -1,11 +1,14 @@
-from abc import ABC, abstractmethod
+from abc import (
+    ABC,
+    abstractmethod,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from graphorm.types import CMD
     from graphorm.common import Common
-    from graphorm.query_result import QueryResult
     from graphorm.graph import Graph
+    from graphorm.query_result import QueryResult
+    from graphorm.types import CMD
 
 
 class Driver(ABC):

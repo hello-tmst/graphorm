@@ -10,13 +10,13 @@ from graphorm import Node, Edge, Graph, select, Relationship
 class Page(Node):
     __primary_key__ = ["path"]
     __indexes__ = ["path", "parsed", "domain"]
-    
+
     path: str
     domain: str = ""
     parsed: bool = False
     title: str = ""
     error: str = None
-    
+
     # Ленивая загрузка связанных страниц
     linked_pages = Relationship("Linked", direction="outgoing")
     linked_from = Relationship("Linked", direction="incoming")
@@ -59,7 +59,7 @@ from graphorm import select, indegree, outdegree
 
 # Найти все непроиндексированные страницы без ошибок
 stmt = select().match(Page.alias("p")).where(
-    (Page.alias("p").parsed == False) & 
+    (Page.alias("p").parsed == False) &
     (Page.alias("p").error.is_null())
 ).limit(10)
 
@@ -204,10 +204,10 @@ with graph.transaction() as tx:
         Page(path="/about", domain="example.com", title="About"),
         Page(path="/contact", domain="example.com", title="Contact"),
     ]
-    
+
     for page in pages:
         tx.add_node(page)
-    
+
     tx.add_edge(Linked(pages[0], pages[1], weight=0.9))
     tx.add_edge(Linked(pages[0], pages[2], weight=0.8))
     tx.add_edge(Linked(pages[1], pages[2], weight=0.7))

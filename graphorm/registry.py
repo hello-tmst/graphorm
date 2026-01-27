@@ -19,12 +19,16 @@ class _Registry:
 
     def get_node(self, label: str) -> type:
         if label not in self.__dict__:
-            raise KeyError(f"Node with label '{label}' not found in registry. Available labels: {list(self.__dict__.keys())}")
+            raise KeyError(
+                f"Node with label '{label}' not found in registry. Available labels: {list(self.__dict__.keys())}"
+            )
         return self.__dict__[label]
 
     def get_edge(self, relation: str) -> type:
         if relation not in self.__dict__:
-            raise KeyError(f"Edge with relation '{relation}' not found in registry. Available relations: {list(self.__dict__.keys())}")
+            raise KeyError(
+                f"Edge with relation '{relation}' not found in registry. Available relations: {list(self.__dict__.keys())}"
+            )
         return self.__dict__[relation]
 
 

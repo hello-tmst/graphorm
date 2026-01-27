@@ -10,13 +10,13 @@ from graphorm import Node, Edge, Graph, select, Relationship
 class User(Node):
     __primary_key__ = ["user_id"]
     __indexes__ = ["user_id", "email", "username"]
-    
+
     user_id: int
     username: str = ""
     email: str = ""
     name: str = ""
     created_at: str = ""
-    
+
     # Ленивая загрузка связей
     friends = Relationship("FRIEND", direction="both")
     posts = Relationship("POSTED", direction="outgoing")
@@ -25,13 +25,13 @@ class User(Node):
 class Post(Node):
     __primary_key__ = ["post_id"]
     __indexes__ = ["post_id", "author_id", "created_at"]
-    
+
     post_id: int
     author_id: int
     content: str = ""
     created_at: str = ""
     likes_count: int = 0
-    
+
     # Ленивая загрузка
     author = Relationship("POSTED", direction="incoming")
     likers = Relationship("LIKED", direction="incoming")
@@ -73,15 +73,15 @@ with graph.transaction() as tx:
     tx.add_node(charlie)
     tx.add_node(post1)
     tx.add_node(post2)
-    
+
     # Добавление дружбы
     tx.add_edge(FRIEND(alice, bob, since="2024-01-01", status="active"))
     tx.add_edge(FRIEND(bob, charlie, since="2024-01-15", status="active"))
-    
+
     # Связь постов с авторами
     tx.add_edge(POSTED(alice, post1, created_at="2024-01-20"))
     tx.add_edge(POSTED(bob, post2, created_at="2024-01-21"))
-    
+
     # Лайки
     tx.add_edge(LIKED(charlie, post1, created_at="2024-01-20"))
     tx.add_edge(LIKED(bob, post1, created_at="2024-01-20"))
@@ -269,7 +269,7 @@ with graph.transaction() as tx:
     alice = User(user_id=1, username="alice")
     bob = User(user_id=2, username="bob")
     post1 = Post(post_id=1, author_id=1, content="Hello!", likes_count=10)
-    
+
     tx.add_node(alice)
     tx.add_node(bob)
     tx.add_node(post1)

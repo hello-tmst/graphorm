@@ -3,7 +3,10 @@
 
 def test_transaction_basic(graph):
     """Test basic transaction usage."""
-    from graphorm import Node, Edge
+    from graphorm import (
+        Edge,
+        Node,
+    )
 
     class Page(Node):
         __primary_key__ = ["path"]
@@ -39,11 +42,11 @@ def test_transaction_manual_flush(graph):
         page2 = Page(path="/page2")
         tx.add_node(page1)
         tx.add_node(page2)
-        
+
         # Manual flush
         result = tx.flush()
         assert result is not None
-        
+
         # Verify nodes were created before context exit
         assert graph.get_node(Page(path="/page1")) is not None
 
@@ -72,7 +75,10 @@ def test_transaction_exception_no_flush(graph):
 
 def test_transaction_chaining(graph):
     """Test transaction method chaining."""
-    from graphorm import Node, Edge
+    from graphorm import (
+        Edge,
+        Node,
+    )
 
     class Page(Node):
         __primary_key__ = ["path"]

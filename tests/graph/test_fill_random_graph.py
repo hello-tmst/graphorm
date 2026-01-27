@@ -1,5 +1,8 @@
 def test_fill_random_graph(graph):
-    from graphorm import Node, Edge
+    from graphorm import (
+        Edge,
+        Node,
+    )
 
     class TestNode(Node):
         __primary_key__ = ["code"]

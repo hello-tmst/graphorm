@@ -18,7 +18,7 @@ def test_get_node_with_composite_key(graph):
 
     # Retrieve user by composite key
     retrieved = graph.get_node(User(tenant_id="acme", user_id=123))
-    
+
     assert retrieved is not None
     assert retrieved.properties["tenant_id"] == "acme"
     assert retrieved.properties["user_id"] == 123
@@ -36,7 +36,7 @@ def test_get_node_with_composite_key_not_found(graph):
 
     # Try to retrieve non-existent user
     retrieved = graph.get_node(User(tenant_id="acme", user_id=999))
-    
+
     assert retrieved is None
 
 
@@ -52,7 +52,9 @@ def test_update_node_with_composite_key(graph):
         email: str = ""
 
     # Create and add user
-    user = User(tenant_id="acme", user_id=123, name="John Doe", email="john@example.com")
+    user = User(
+        tenant_id="acme", user_id=123, name="John Doe", email="john@example.com"
+    )
     graph.add_node(user)
     graph.flush()
 
@@ -61,7 +63,7 @@ def test_update_node_with_composite_key(graph):
 
     # Retrieve and verify update
     retrieved = graph.get_node(User(tenant_id="acme", user_id=123))
-    
+
     assert retrieved is not None
     assert retrieved.properties["tenant_id"] == "acme"
     assert retrieved.properties["user_id"] == 123
@@ -81,7 +83,9 @@ def test_update_node_with_composite_key_partial_update(graph):
         email: str = ""
 
     # Create and add user
-    user = User(tenant_id="acme", user_id=123, name="John Doe", email="john@example.com")
+    user = User(
+        tenant_id="acme", user_id=123, name="John Doe", email="john@example.com"
+    )
     graph.add_node(user)
     graph.flush()
 
@@ -90,7 +94,7 @@ def test_update_node_with_composite_key_partial_update(graph):
 
     # Retrieve and verify partial update
     retrieved = graph.get_node(User(tenant_id="acme", user_id=123))
-    
+
     assert retrieved is not None
     assert retrieved.properties["name"] == "Jane Doe"
     assert retrieved.properties["email"] == "john@example.com"  # Unchanged
@@ -106,10 +110,10 @@ def test_composite_key_cypher_generation(graph):
         user_id: int
 
     user = User(tenant_id="acme", user_id=123)
-    
+
     # Check that __str_pk__ generates correct Cypher pattern
     pk_pattern = user.__str_pk__()
-    
+
     # Should generate something like: (alias:User{tenant_id:'acme',user_id:123})
     assert "User" in pk_pattern
     assert "tenant_id" in pk_pattern

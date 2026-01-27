@@ -3,10 +3,10 @@ from collections import OrderedDict
 from prettytable import PrettyTable
 from redis import ResponseError
 
-from .registry import Registry
 from .edge import Edge
 from .node import Node
 from .path import Path
+from .registry import Registry
 
 LABELS_ADDED = "Labels added"
 NODES_CREATED = "Nodes created"
@@ -36,8 +36,12 @@ STATS = [
 class ResultSetColumnTypes:
     COLUMN_UNKNOWN = 0
     COLUMN_SCALAR = 1
-    COLUMN_NODE = 2  # Unused as of RedisGraph v2.1.0, retained for backwards compatibility.
-    COLUMN_RELATION = 3  # Unused as of RedisGraph v2.1.0, retained for backwards compatibility.
+    COLUMN_NODE = (
+        2  # Unused as of RedisGraph v2.1.0, retained for backwards compatibility.
+    )
+    COLUMN_RELATION = (
+        3  # Unused as of RedisGraph v2.1.0, retained for backwards compatibility.
+    )
 
 
 class ResultSetScalarTypes:
@@ -182,7 +186,11 @@ class QueryResult:
             for inner_label in cell[1]:
                 labels.append(self.graph.get_label(inner_label))
         properties = self.parse_entity_properties(cell[2])
-        return Registry.get_node(labels[0])(_id=node_id, **properties)
+        node = Registry.get_node(labels[0])(_id=node_id, **properties)
+        # Set graph reference for lazy loading relationships
+        # __graph__ is in __slots__, so we can set it directly
+        node.__graph__ = self.graph
+        return node
 
     def parse_edge(self, cell):
         # Edge ID (integer),
@@ -196,7 +204,14 @@ class QueryResult:
         src_node_id = int(cell[2])
         dst_node_id = int(cell[3])
         properties = self.parse_entity_properties(cell[4])
-        return Registry.get_edge(relation)(src_node_id, dst_node_id, _id=edge_id, **properties)
+        edge = Registry.get_edge(relation)(
+            src_node_id, dst_node_id, _id=edge_id, **properties
+        )
+        # Set graph reference for consistency
+        # __graph__ is in __slots__ for Edge (inherited from Common), so we can set it directly
+        if hasattr(edge, "__graph__"):
+            edge.__graph__ = self.graph
+        return edge
 
     def parse_path(self, cell):
         nodes = self.parse_scalar(cell[0])
@@ -291,9 +306,7 @@ class QueryResult:
             for row in self.result_set:
                 record = []
                 for idx, cell in enumerate(row):
-                    if type(cell) is Node:
-                        record.append(cell.toString())
-                    elif type(cell) is Edge:
+                    if type(cell) is Node or type(cell) is Edge:
                         record.append(cell.toString())
                     else:
                         record.append(cell)
