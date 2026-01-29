@@ -2,11 +2,14 @@
 Tests for variable-length paths in MATCH patterns.
 """
 
+import pytest
+
 from graphorm import (
     Edge,
     Node,
     select,
 )
+from graphorm.variable_length import VariableLength
 
 
 def test_variable_length_path_string_pattern(graph):
@@ -213,3 +216,30 @@ def test_variable_length_path_orm_with_where_and_returns():
     assert "*1..3" in cypher
     assert "WHERE" in cypher
     assert "RETURN" in cypher
+
+
+def test_variable_length_min_hops_negative_raises():
+    """VariableLength with min_hops < 0 raises ValueError."""
+    class Linked(Edge):
+        pass
+
+    with pytest.raises(ValueError, match="min_hops must be >= 0"):
+        VariableLength(Linked, -1, 1)
+
+
+def test_variable_length_max_hops_negative_raises():
+    """VariableLength with max_hops < 0 raises ValueError."""
+    class Linked(Edge):
+        pass
+
+    with pytest.raises(ValueError, match="max_hops must be >= 0"):
+        VariableLength(Linked, 1, -1)
+
+
+def test_variable_length_min_greater_than_max_raises():
+    """VariableLength with min_hops > max_hops raises ValueError."""
+    class Linked(Edge):
+        pass
+
+    with pytest.raises(ValueError, match="min_hops must be <= max_hops"):
+        VariableLength(Linked, 3, 1)

@@ -2,6 +2,7 @@
 Tests for PropertiesManager - isolated properties management system.
 """
 
+from graphorm import Node
 from graphorm.properties import (
     DefaultPropertiesValidator,
     PropertiesManager,
@@ -297,3 +298,43 @@ class TestPropertiesManagerIntegration:
         node.update({"active": False})
         assert node.properties["active"] is False
         assert node.active is False
+
+
+def test_common_update_fallback_without_properties_manager():
+    """Common.update() fallback when _properties_manager is missing."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    node = Page(path="/x")
+    del node._properties_manager
+    node.update({"path": "/y"})
+    assert node.path == "/y"
+    assert hasattr(node, "_properties_manager")
+
+
+def test_common_properties_sync_from_dict():
+    """Common.properties syncs from __dict__ when new keys set after init."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    node = Page(path="/x")
+    node.__dict__["extra"] = 42
+    props = node.properties
+    assert "extra" in props
+    assert props["extra"] == 42
+
+
+def test_common_validate_uses_default_when_key_not_in_data():
+    """Common._validate uses class default when key in annotations but not in data."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+        parsed: bool = False
+
+    # Call _validate with incomplete data to hit else branch (key not in data)
+    values = Page._validate({"path": "/only"})
+    assert values["path"] == "/only"
+    # "parsed" is in annotations but not in data -> else branch runs; default may be Property or False
+    assert "parsed" in values

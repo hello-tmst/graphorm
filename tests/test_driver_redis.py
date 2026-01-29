@@ -277,3 +277,50 @@ def test_redis_driver_commit_error_handling(graph):
 
     # Should return result even if some batches had issues
     # (implementation continues on error)
+
+
+@patch("graphorm.drivers.redis.RedisDriver.query")
+def test_redis_driver_commit_all_batches_fail_returns_none(mock_query, graph):
+    """When all commit batches raise, last_result stays None and warning is logged."""
+    from graphorm import Node
+
+    mock_query.side_effect = Exception("mock failure")
+
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    page = Page(path="/x")
+    graph.add_node(page)
+
+    result = graph.driver.commit(graph, items=[page], batch_size=1)
+
+    assert result is None
+    assert mock_query.call_count >= 1
+
+
+@patch("graphorm.drivers.redis.RedisDriver.query")
+def test_redis_driver_commit_edge_batch_exception_continues(mock_query, graph):
+    """When edge batch raises, commit continues and returns last node result."""
+    from graphorm import Edge, Node
+
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    page1 = Page(path="/a")
+    page2 = Page(path="/b")
+    edge = Linked(page1, page2)
+    # Pass items explicitly so only this commit() uses the mock (no flush() calls)
+    mock_result = Mock()
+    mock_query.side_effect = [mock_result, mock_result, Exception("edge commit failed")]
+
+    result = graph.driver.commit(
+        graph, items=[page1, page2, edge], batch_size=1
+    )
+
+    assert result is mock_result
+    assert mock_query.call_count == 3

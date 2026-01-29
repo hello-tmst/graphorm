@@ -367,3 +367,69 @@ def test_to_cypher_generation(graph):
     skip_pos = cypher.find("SKIP")
     limit_pos = cypher.find("LIMIT")
     assert skip_pos < limit_pos
+
+
+def test_select_optional_match_to_cypher():
+    """Select with optional_match produces OPTIONAL MATCH in Cypher."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Other(Node):
+        __primary_key__ = ["id"]
+        id: str
+
+    stmt = (
+        select()
+        .match(Page.alias("p"))
+        .optional_match(Other.alias("o"))
+        .returns("p", "o")
+    )
+    cypher = stmt.to_cypher()
+    assert "OPTIONAL MATCH" in cypher
+    assert "MATCH" in cypher
+    assert "RETURN" in cypher
+
+
+def test_select_raw_match_to_cypher():
+    """Select with RAW match uses raw pattern in MATCH."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    stmt = select().match(("RAW", "(n:Page)")).returns("n")
+    cypher = stmt.to_cypher()
+    assert "MATCH" in cypher
+    assert "(n:Page)" in cypher
+    assert "RETURN" in cypher
+
+
+def test_select_with_clause_to_cypher():
+    """Select with with_() produces WITH in Cypher."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    PageAlias = Page.alias("p")
+    stmt = (
+        select()
+        .match(PageAlias)
+        .with_(PageAlias, "p")
+        .returns("p")
+    )
+    cypher = stmt.to_cypher()
+    assert "WITH" in cypher
+    assert "MATCH" in cypher
+    assert "RETURN" in cypher
+
+
+def test_select_returns_distinct_to_cypher():
+    """Select with returns_distinct produces DISTINCT in RETURN."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    stmt = select(Page).returns_distinct(Page)
+    cypher = stmt.to_cypher()
+    assert "RETURN" in cypher
+    assert "DISTINCT" in cypher

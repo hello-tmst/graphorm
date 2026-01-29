@@ -13,6 +13,7 @@ from graphorm.expression import (
     Function,
     OrderByExpression,
     OrExpression,
+    add_query_param,
     avg,
     count,
     indegree,
@@ -562,3 +563,14 @@ def test_expression_chaining():
     or_chained = expr1 | expr2 | expr3
 
     assert isinstance(or_chained, OrExpression)
+
+
+def test_add_query_param_dedupe_returns_existing_key():
+    """add_query_param with dedupe=True returns existing param name when value already in params."""
+    params = {}
+    name1 = add_query_param("same_value", params, dedupe=True)
+    assert name1 == "param_0"
+    assert params["param_0"] == "same_value"
+    name2 = add_query_param("same_value", params, dedupe=True)
+    assert name2 == "param_0"
+    assert len(params) == 1
