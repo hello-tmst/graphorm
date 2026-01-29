@@ -107,3 +107,109 @@ def test_variable_length_path_mixed_with_regular(graph):
     assert "MATCH" in cypher
     assert "*1..3" in cypher
     assert "(start:Page)" in cypher or "start" in cypher
+
+
+def test_variable_length_path_orm_range():
+    """ORM-style variable-length path with range 1..3."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    stmt = select().match(
+        (Page.alias("start"), Linked.variable_length(1, 3), Page.alias("end"))
+    )
+    cypher = stmt.to_cypher()
+
+    assert "MATCH" in cypher
+    assert "*1..3" in cypher
+    assert "Linked" in cypher
+
+
+def test_variable_length_path_orm_unbounded():
+    """ORM-style variable-length path unbounded."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    stmt = select().match(
+        (Page.alias("start"), Linked.variable_length(), Page.alias("end"))
+    )
+    cypher = stmt.to_cypher()
+
+    assert "MATCH" in cypher
+    assert "Linked" in cypher
+    # Unbounded: [:Linked*] (no number after *)
+    assert "*]" in cypher or "Linked*]" in cypher
+
+
+def test_variable_length_path_orm_exact():
+    """ORM-style variable-length path exact length 2."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    stmt = select().match(
+        (Page.alias("start"), Linked.variable_length(2, 2), Page.alias("end"))
+    )
+    cypher = stmt.to_cypher()
+
+    assert "MATCH" in cypher
+    assert "*2" in cypher
+    assert "Linked" in cypher
+
+
+def test_variable_length_path_orm_min_only():
+    """ORM-style variable-length path min only (min.. unbounded)."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    stmt = select().match(
+        (
+            Page.alias("start"),
+            Linked.variable_length(min_hops=1, max_hops=None),
+            Page.alias("end"),
+        )
+    )
+    cypher = stmt.to_cypher()
+
+    assert "MATCH" in cypher
+    assert "*1.." in cypher
+    assert "Linked" in cypher
+
+
+def test_variable_length_path_orm_with_where_and_returns():
+    """ORM variable-length with WHERE and RETURN."""
+    class Page(Node):
+        __primary_key__ = ["path"]
+        path: str
+
+    class Linked(Edge):
+        pass
+
+    Start = Page.alias("start")
+    End = Page.alias("end")
+    stmt = (
+        select()
+        .match((Start, Linked.variable_length(1, 3), End))
+        .where(Start.path == "/page1")
+        .returns(Start, End)
+    )
+    cypher = stmt.to_cypher()
+
+    assert "MATCH" in cypher
+    assert "*1..3" in cypher
+    assert "WHERE" in cypher
+    assert "RETURN" in cypher

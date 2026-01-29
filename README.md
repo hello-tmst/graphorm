@@ -290,6 +290,30 @@ for row in result.result_set:
     print(f"{page.properties['path']}: {degree} connections")
 ```
 
+### Variable-length paths
+
+You can express variable-length paths (e.g. 1 to 3 hops, unbounded, or exactly N) in ORM style — no raw Cypher — using `Edge.variable_length(min_hops, max_hops)` in the same `match()`:
+
+```python
+from graphorm import Node, Edge, select
+
+class Page(Node):
+    __primary_key__ = ["path"]
+    path: str
+
+class Linked(Edge):
+    pass
+
+# 1 to 3 hops: (start:Page)-[:Linked*1..3]->(end:Page)
+stmt = select().match(
+    (Page.alias("start"), Linked.variable_length(1, 3), Page.alias("end"))
+).returns(Page.alias("start"), Page.alias("end"))
+
+result = graph.execute(stmt)
+```
+
+For unbounded length use `Linked.variable_length()`; for exactly N hops use `Linked.variable_length(2, 2)`. Raw string patterns in `match("(a)-[:Linked*1..3]->(b)")` are still supported.
+
 ## Transactions
 
 Use transactions to group operations atomically:

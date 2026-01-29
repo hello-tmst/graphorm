@@ -11,6 +11,7 @@ from typing import (
 )
 
 from .select import Statement
+from .variable_length import VariableLength
 
 if TYPE_CHECKING:
     pass
@@ -113,13 +114,14 @@ class Delete(Statement):
                 elif hasattr(src, "_alias"):
                     if src._alias not in delete_targets:
                         delete_targets.append(src._alias)
-                if isinstance(edge, type):
-                    alias = self._get_alias_for_entity(edge)
-                    if alias not in delete_targets:
-                        delete_targets.append(alias)
-                elif hasattr(edge, "_alias"):
-                    if edge._alias not in delete_targets:
-                        delete_targets.append(edge._alias)
+                if not isinstance(edge, VariableLength):
+                    if isinstance(edge, type):
+                        alias = self._get_alias_for_entity(edge)
+                        if alias not in delete_targets:
+                            delete_targets.append(alias)
+                    elif hasattr(edge, "_alias"):
+                        if edge._alias not in delete_targets:
+                            delete_targets.append(edge._alias)
                 if isinstance(dst, type):
                     alias = self._get_alias_for_entity(dst)
                     if alias not in delete_targets:

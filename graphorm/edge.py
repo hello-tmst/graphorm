@@ -83,6 +83,26 @@ class Edge(Common):
 
         return AliasedEdge
 
+    @classmethod
+    def variable_length(
+        cls,
+        min_hops: int | None = None,
+        max_hops: int | None = None,
+    ) -> "VariableLength":
+        """
+        Create a variable-length path descriptor for use in match().
+
+        Use in select().match((src, Linked.variable_length(1, 3), dst))
+        to generate (a)-[:Linked*1..3]->(b).
+
+        :param min_hops: Minimum number of hops (None = unbounded lower).
+        :param max_hops: Maximum number of hops (None = unbounded upper).
+        :return: VariableLength descriptor.
+        """
+        from .variable_length import VariableLength
+
+        return VariableLength(cls, min_hops, max_hops)
+
     def set_alias(self, alias: str) -> None:
         """
         Set Node alias.

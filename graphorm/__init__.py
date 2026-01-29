@@ -47,6 +47,7 @@ from .select import (
     aliased,
     select,
 )
+from .variable_length import VariableLength
 
 __all__ = [
     "Node",
@@ -88,4 +89,5 @@ __all__ = [
     "tail",
     "last",
     "Relationship",
+    "VariableLength",
 ]

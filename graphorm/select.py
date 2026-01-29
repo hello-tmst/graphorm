@@ -13,6 +13,8 @@ from typing import (
     Union,
 )
 
+from .variable_length import VariableLength
+
 if TYPE_CHECKING:
     from .edge import Edge
     from .expression import (
@@ -231,7 +233,7 @@ class Statement:
                 src, edge, dst = match_item
                 self._add_to_alias_map(src, alias_map)
                 self._add_to_alias_map(dst, alias_map)
-                if include_edges:
+                if include_edges and not isinstance(edge, VariableLength):
                     self._add_to_alias_map(edge, alias_map)
             else:
                 self._add_to_alias_map(match_item, alias_map)
@@ -286,8 +288,26 @@ class Statement:
 
         return None
 
+    def _variable_length_edge_to_pattern(self, v: VariableLength) -> str:
+        """Convert VariableLength descriptor to Cypher edge pattern [:REL*...]."""
+        relation = self._get_relation_from_class(v.edge_class)
+        min_h, max_h = v.min_hops, v.max_hops
+        if min_h is None and max_h is None:
+            suffix = "*"
+        elif min_h is not None and max_h is not None and min_h == max_h:
+            suffix = f"*{min_h}"
+        elif min_h is not None and max_h is not None:
+            suffix = f"*{min_h}..{max_h}"
+        elif min_h is not None:
+            suffix = f"*{min_h}.."
+        else:
+            suffix = "*"
+        return f"[:{relation}{suffix}]"
+
     def _edge_to_match_pattern(self, edge: Any) -> str:
         """Convert edge to MATCH pattern."""
+        if isinstance(edge, VariableLength):
+            return self._variable_length_edge_to_pattern(edge)
         if isinstance(edge, type):
             if hasattr(edge, "_alias"):
                 alias = edge._alias
