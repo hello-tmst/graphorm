@@ -49,6 +49,7 @@ class Graph:
         host: str = None,
         port: int = 6379,
         password: str = None,
+        driver: "Driver" = None,
     ):
         """
         Initialize a Graph instance.
@@ -58,31 +59,40 @@ class Graph:
         :param host: Redis host (required if connection not provided)
         :param port: Redis port (default: 6379)
         :param password: Redis password (optional)
+        :param driver: Driver instance (optional). If provided, use it; do not pass connection/host/port/password.
         """
         self._name: str = name  # Graph key
 
-        # Initialize driver
-        from .drivers.redis import RedisDriver
-
-        if connection:
-            # Extract connection parameters if available
-            try:
-                conn_kwargs = connection.connection_pool.connection_kwargs
-                driver_host = conn_kwargs.get("host", "localhost")
-                driver_port = conn_kwargs.get("port", 6379)
-                driver_password = conn_kwargs.get("password")
-            except AttributeError:
-                # Fallback if connection_pool structure is different
-                driver_host = "localhost"
-                driver_port = 6379
-                driver_password = None
-
-            self._driver = RedisDriver(driver_host, driver_port, driver_password)
-            self._driver.connection = connection
-        elif host:
-            self._driver = RedisDriver(host, port, password)
+        if driver is not None:
+            if connection is not None or host is not None or port != 6379 or password is not None:
+                raise ValueError(
+                    "Cannot specify both 'driver' and connection parameters "
+                    "(host/port/password/connection). Use either explicit driver instance or connection details."
+                )
+            self._driver = driver
         else:
-            raise ValueError("Either connection or host must be provided")
+            # Initialize driver
+            from .drivers.redis import RedisDriver
+
+            if connection:
+                # Extract connection parameters if available
+                try:
+                    conn_kwargs = connection.connection_pool.connection_kwargs
+                    driver_host = conn_kwargs.get("host", "localhost")
+                    driver_port = conn_kwargs.get("port", 6379)
+                    driver_password = conn_kwargs.get("password")
+                except AttributeError:
+                    # Fallback if connection_pool structure is different
+                    driver_host = "localhost"
+                    driver_port = 6379
+                    driver_password = None
+
+                self._driver = RedisDriver(driver_host, driver_port, driver_password)
+                self._driver.connection = connection
+            elif host:
+                self._driver = RedisDriver(host, port, password)
+            else:
+                raise ValueError("Either connection or host must be provided")
 
         # Initialize collections
         self._nodes: dict[str, Node] = {}  # Dictionary of nodes by alias
@@ -183,21 +193,30 @@ class Graph:
 
     def _refresh_labels(self) -> list[str]:
         result = self._driver.call_procedure(
-            self._name, "db.labels", read_only=True, graph=self
+            self._name,
+            self._driver.dialect.procedure_labels(),
+            read_only=True,
+            graph=self,
         )
         self._labels = self._unpack(result.result_set)
         return self._labels
 
     def _refresh_property_keys(self) -> list[str]:
         result = self._driver.call_procedure(
-            self._name, "db.propertyKeys", read_only=True, graph=self
+            self._name,
+            self._driver.dialect.procedure_property_keys(),
+            read_only=True,
+            graph=self,
         )
         self._property_keys = self._unpack(result.result_set)
         return self._property_keys
 
     def _refresh_relationship_types(self) -> list[str]:
         result = self._driver.call_procedure(
-            self._name, "db.relationshipTypes", read_only=True, graph=self
+            self._name,
+            self._driver.dialect.procedure_relationship_types(),
+            read_only=True,
+            graph=self,
         )
         self._relationship_types = self._unpack(result.result_set)
         return self._relationship_types
@@ -550,31 +569,31 @@ class Graph:
         :param property_name: Property name
         :return: QueryResult object
         """
-        query = f"DROP INDEX ON :{label}({property_name})"
+        query = self._driver.dialect.drop_index_sql(label, property_name)
         return self.query(query)
 
     def list_indexes(self) -> list[dict[str, Any]]:
         """
-        List all indexes in the graph via FalkorDB db.indexes() procedure.
+        List all indexes in the graph via dialect procedure (e.g. db.indexes() YIELD label, properties).
 
-        :return: List of index information dictionaries (label, properties, type, status)
+        :return: List of index information dictionaries (label, properties)
         """
         try:
             result = self._driver.call_procedure(
                 self._name,
-                "db.indexes",
-                y=["types", "label", "properties", "status"],
+                self._driver.dialect.procedure_indexes(),
                 read_only=True,
                 graph=self,
             )
             indexes = []
             for row in result.result_set:
-                props = row[2] if isinstance(row[2], list) else [row[2]]
+                # dialect.procedure_indexes() returns "db.indexes() YIELD label, properties"
+                label_val = row[0] if len(row) > 0 else None
+                props_val = row[1] if len(row) > 1 else []
+                props = props_val if isinstance(props_val, list) else [props_val]
                 indexes.append({
-                    "type": row[0],
-                    "label": row[1],
+                    "label": label_val,
                     "properties": props,
-                    "status": row[3],
                 })
             return indexes
         except Exception as e:

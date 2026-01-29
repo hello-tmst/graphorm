@@ -4,6 +4,7 @@ import redis
 
 from graphorm.common import Common
 from graphorm.drivers.base import Driver
+from graphorm.drivers.dialects import FalkorDBDialect
 from graphorm.exceptions import (
     ConnectionError,
     QueryExecutionError,
@@ -21,6 +22,7 @@ logger = getLogger(__name__)
 class RedisDriver(Driver):
     def __init__(self, host: str, port: int = 6379, password: str = None):
         self.connection = redis.Redis(host, port, password=password)
+        self.dialect = FalkorDBDialect()
 
     def call_procedure(
         self,
@@ -31,12 +33,15 @@ class RedisDriver(Driver):
         graph=None,
         **kwagrs,
     ) -> QueryResult:
-        args = [quote_string(arg) for arg in args]
-        q = "CALL {}({})".format(procedure, ",".join(args))
-
-        y = kwagrs.get("y", None)
-        if y:
-            q += " YIELD %s" % ",".join(y)
+        # Support dialect returning full call (e.g. "db.labels()" or "db.indexes() YIELD label, properties")
+        if "(" in procedure:
+            q = "CALL " + procedure
+        else:
+            args = [quote_string(arg) for arg in args]
+            q = "CALL {}({})".format(procedure, ",".join(args))
+            y = kwagrs.get("y", None)
+            if y:
+                q += " YIELD %s" % ",".join(y)
 
         return self.query(CMD.RO_QUERY, graph_name, q, read_only=read_only, graph=graph)
 

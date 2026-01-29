@@ -12,7 +12,15 @@ if TYPE_CHECKING:
 
 
 class Driver(ABC):
-    """Abstract base class for graph database drivers."""
+    """
+    Abstract base class for graph database drivers.
+
+    Implementations must provide a :attr:`dialect` attribute implementing the Dialect
+    protocol (from graphorm.drivers.dialects), used for DB-specific query fragments
+    (index DDL, procedure names). Graph and Node obtain these via driver.dialect.*.
+    """
+
+    dialect = None  # Subclasses set to a Dialect instance (e.g. FalkorDBDialect())
 
     @abstractmethod
     def query(

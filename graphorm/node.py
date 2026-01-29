@@ -118,7 +118,7 @@ class Node(Common):
                 return None
 
         # Step 2: create with race-condition protection
-        query = f"CREATE INDEX ON :{label}({property_name})"
+        query = graph.driver.dialect.create_index_sql(label, property_name)
         try:
             result = graph.query(query)
             logger.debug("Created index on %s.%s", label, property_name)
