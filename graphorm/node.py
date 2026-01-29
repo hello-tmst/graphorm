@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import json
 from logging import getLogger
 from typing import Any
 
 from .common import Common
+from .exceptions import QueryExecutionError
 from .registry import Registry
 from .utils import (
     format_cypher_value,
@@ -90,15 +93,14 @@ class Node(Common):
         return AliasedNode
 
     @classmethod
-    def create_index(cls, property_name: str, graph: "Graph") -> "QueryResult":
+    def create_index(cls, property_name: str, graph: "Graph") -> "QueryResult | None":
         """
-        Create an index on a property for this Node class.
+        Create an index on a property for this Node class (idempotent).
 
         :param property_name: Name of the property to index
         :param graph: Graph instance to create the index on
-        :return: QueryResult object
+        :return: QueryResult on success, None if index already exists
         """
-
         # Get label for this node class
         if hasattr(cls, "__labels__"):
             label = list(cls.__labels__)[0]
@@ -107,8 +109,28 @@ class Node(Common):
         else:
             label = cls.__name__
 
+        # Step 1: check via list_indexes()
+        for idx in graph.list_indexes():
+            if idx["label"] == label and property_name in idx.get("properties", []):
+                logger.debug(
+                    "Index on %s.%s already exists (via list_indexes)", label, property_name
+                )
+                return None
+
+        # Step 2: create with race-condition protection
         query = f"CREATE INDEX ON :{label}({property_name})"
-        return graph.query(query)
+        try:
+            result = graph.query(query)
+            logger.debug("Created index on %s.%s", label, property_name)
+            return result
+        except QueryExecutionError as e:
+            msg = str(e).lower()
+            if "already indexed" in msg or "already exists" in msg:
+                logger.debug(
+                    "Index on %s.%s already exists (race condition)", label, property_name
+                )
+                return None
+            raise
 
     def set_alias(self, alias: str) -> None:
         """
@@ -147,6 +169,11 @@ class Node(Common):
         if pk_map:
             res += pk_map
         res += ")"
+        if not res or not res.startswith("(") or not res.endswith(")"):
+            raise ValueError(
+                f"Cannot form valid node pattern for {self}. "
+                f"Labels: {self.labels}, PK: {get_pk_fields(self)}, Alias: {self.alias}"
+            )
         return res
 
     def __str__(self) -> str:

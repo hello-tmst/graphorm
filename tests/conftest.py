@@ -70,3 +70,19 @@ def graph(falkordb_container):
     G.create()
     yield G
     G.delete()
+
+
+@pytest.fixture(scope="function")
+def empty_graph(falkordb_container):
+    """Create a Graph instance without calling create() (for idempotency tests)."""
+    import uuid
+
+    from graphorm.graph import Graph
+
+    G = Graph(
+        str(uuid.uuid4()),
+        host=falkordb_container["host"],
+        port=falkordb_container["port"],
+    )
+    yield G
+    G.delete()

@@ -16,8 +16,13 @@ from graphorm.mixin import (
 
 class _TestDriver(NodeMixin, EdgeMixin, GraphMixin, RedisDriver):
     """Test driver that combines all mixins with RedisDriver."""
+    __test__ = False
 
-    pass
+    def get(self, graph, entity):
+        """Dispatch to NodeMixin.get or EdgeMixin.get by entity type."""
+        if isinstance(entity, Edge):
+            return EdgeMixin.get(self, graph, entity)
+        return NodeMixin.get(self, graph, entity)
 
 
 # Alias for backward compatibility in tests
@@ -123,18 +128,9 @@ def test_edge_mixin_get_existing_edge(graph):
     page1.set_alias("p1")
     page2.set_alias("p2")
 
-    # Test getting existing edge - use graph.query directly as EdgeMixin.get has issues with __str_pk__ format
-    # Instead, test that the method exists and can be called
-    # The actual query format issue is a bug in EdgeMixin that needs to be fixed separately
-    try:
-        found_edge = driver.get(graph, test_edge)
-        # If it works, check the result
-        if found_edge is not None:
-            assert isinstance(found_edge, Linked)
-    except Exception:
-        # If it fails due to query format, that's expected - the mixin has a bug
-        # We're just testing that the method exists and is callable
-        pass
+    found_edge = driver.get(graph, test_edge)
+    assert found_edge is not None
+    assert isinstance(found_edge, Linked)
 
 
 def test_edge_mixin_get_nonexistent_edge(graph):
@@ -168,13 +164,29 @@ def test_edge_mixin_get_nonexistent_edge(graph):
     page1.set_alias("p1")
     page2.set_alias("p2")
 
-    # Test getting non-existent edge - similar issue as above
-    try:
-        found_edge = driver.get(graph, test_edge)
-        assert found_edge is None
-    except Exception:
-        # If it fails due to query format, that's expected
+    found_edge = driver.get(graph, test_edge)
+    assert found_edge is None
+
+
+def test_get_edge_by_node_ids(graph):
+    """Test get_edge with edge whose src_node/dst_node are int IDs (e.g. from parsed result)."""
+
+    class Linked(Edge):
         pass
+
+    # Edge with node IDs (as when loaded from query result)
+    edge = Linked(123, 456)
+    edge.set_alias("r")
+
+    # _build_edge_match_clause should produce WHERE id(src)=123 AND id(dst)=456
+    match_clause, params = graph._build_edge_match_clause(edge)
+    assert "id(src) = 123" in match_clause
+    assert "id(dst) = 456" in match_clause
+    assert params == {}
+
+    # get_edge should not crash; no such edge in graph so result is None
+    found = graph.get_edge(edge)
+    assert found is None
 
 
 def test_graph_mixin_create(graph):

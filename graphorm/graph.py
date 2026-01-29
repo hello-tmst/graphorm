@@ -294,6 +294,54 @@ class Graph:
         query = f"MATCH {pk_pattern} {delete_keyword} {node.alias}"
         return self.query(query)
 
+    def _build_edge_match_clause(self, edge: Edge) -> tuple[str, dict]:
+        """
+        Build MATCH clause for an edge. Returns (match_clause, params) for use in
+        MATCH {match_clause} RETURN r or MATCH {match_clause} DELETE r.
+        Supports both Node endpoints and int node IDs (e.g. from parsed query results).
+        Uses safe string concatenation for IDs (FalkorDB/RedisGraph do not support $params).
+        """
+        params: dict = {}
+        # Source
+        if isinstance(edge.src_node, Node):
+            src_pat = edge.src_node.__str_pk__()
+            if not src_pat or not src_pat.startswith("("):
+                raise ValueError(f"Invalid source node pattern: {src_pat}")
+        else:
+            src_pat = "(src)"
+            src_id_safe = str(int(edge.src_node))
+        # Destination
+        if isinstance(edge.dst_node, Node):
+            dst_pat = edge.dst_node.__str_pk__()
+            if not dst_pat or not dst_pat.startswith("("):
+                raise ValueError(f"Invalid destination node pattern: {dst_pat}")
+        else:
+            dst_pat = "(dst)"
+            dst_id_safe = str(int(edge.dst_node))
+        # Both Node: single path pattern
+        if isinstance(edge.src_node, Node) and isinstance(edge.dst_node, Node):
+            match_clause = f"{src_pat}-[{edge.alias}:{edge.relation}]->{dst_pat}"
+            return match_clause, params
+        # Both int: WHERE id(src)=... AND id(dst)=...
+        if not isinstance(edge.src_node, Node) and not isinstance(edge.dst_node, Node):
+            match_clause = (
+                f"(src), (dst) WHERE id(src) = {src_id_safe} AND id(dst) = {dst_id_safe} "
+                f"MATCH (src)-[{edge.alias}:{edge.relation}]->(dst)"
+            )
+            return match_clause, params
+        # Mixed: one Node, one int
+        if isinstance(edge.src_node, Node):
+            match_clause = (
+                f"{src_pat}, (dst) WHERE id(dst) = {dst_id_safe} "
+                f"MATCH ({edge.src_node.alias})-[{edge.alias}:{edge.relation}]->(dst)"
+            )
+        else:
+            match_clause = (
+                f"(src), {dst_pat} WHERE id(src) = {src_id_safe} "
+                f"MATCH (src)-[{edge.alias}:{edge.relation}]->({edge.dst_node.alias})"
+            )
+        return match_clause, params
+
     def delete_edge(self, edge: Edge) -> QueryResult:
         """
         Delete an edge from the graph.
@@ -301,12 +349,9 @@ class Graph:
         :param edge: Edge instance to delete
         :return: QueryResult object
         """
-        # Build MATCH pattern for edge
-        src_pattern = edge.src_node.__str_pk__()
-        dst_pattern = edge.dst_node.__str_pk__()
-        edge_pattern = f"[{edge.alias}:{edge.relation}]"
-        query = f"MATCH {src_pattern}-{edge_pattern}->{dst_pattern} DELETE {edge.alias}"
-        return self.query(query)
+        match_clause, params = self._build_edge_match_clause(edge)
+        query = f"MATCH {match_clause} DELETE {edge.alias}"
+        return self.query(query, params=params)
 
     def _find_cached_node_by_pk(self, node: Node) -> Node | None:
         """Find a node in the local cache by alias or by primary key."""
@@ -458,8 +503,9 @@ class Graph:
         :param edge: Edge instance to search for
         :return: Edge instance if found, None otherwise
         """
-        q = f"MATCH {edge.src_node.__str_pk__()}-{edge.__str_pk__()}->{edge.dst_node.__str_pk__()} RETURN {edge.alias}"
-        result = self.query(q)
+        match_clause, params = self._build_edge_match_clause(edge)
+        q = f"MATCH {match_clause} RETURN {edge.alias}"
+        result = self.query(q, params=params)
         if len(result.result_set) > 0:
             found_edge = result.result_set[0][0]
             found_edge.set_alias(edge.alias)
@@ -487,18 +533,14 @@ class Graph:
         """
         from .registry import Registry
 
-        # Get all registered node classes
-        for label, node_class in Registry.__dict__.items():
-            if isinstance(node_class, type) and hasattr(node_class, "__indexes__"):
-                indexes = node_class.__indexes__
-                if isinstance(indexes, list):
-                    for prop_name in indexes:
-                        try:
-                            node_class.create_index(prop_name, self)
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to create index on {label}.{prop_name}: {e}"
-                            )
+        for _name, cls in Registry.__dict__.items():
+            if not isinstance(cls, type) or not issubclass(cls, Node) or cls is Node:
+                continue
+            indexes = getattr(cls, "__indexes__", [])
+            if not isinstance(indexes, list):
+                continue
+            for prop in indexes:
+                cls.create_index(prop, self)
 
     def drop_index(self, label: str, property_name: str) -> QueryResult:
         """
@@ -513,15 +555,34 @@ class Graph:
 
     def list_indexes(self) -> list[dict[str, Any]]:
         """
-        List all indexes in the graph.
+        List all indexes in the graph via FalkorDB db.indexes() procedure.
 
-        :return: List of index information dictionaries
+        :return: List of index information dictionaries (label, properties, type, status)
         """
-        # RedisGraph/FalkorDB doesn't have a direct way to list indexes
-        # This would require calling a procedure if available
-        # For now, return empty list as placeholder
-        # TODO: Implement if RedisGraph provides index listing procedure
-        return []
+        try:
+            result = self._driver.call_procedure(
+                self._name,
+                "db.indexes",
+                y=["types", "label", "properties", "status"],
+                read_only=True,
+                graph=self,
+            )
+            indexes = []
+            for row in result.result_set:
+                props = row[2] if isinstance(row[2], list) else [row[2]]
+                indexes.append({
+                    "type": row[0],
+                    "label": row[1],
+                    "properties": props,
+                    "status": row[3],
+                })
+            return indexes
+        except Exception as e:
+            msg = str(e).lower()
+            if "procedure not found" in msg or "db.indexes" in msg:
+                logger.debug("db.indexes() unavailable (old DB version?): %s", e)
+                return []
+            raise
 
     def bulk_upsert(
         self, node_class: type[N], data: list[dict[str, Any]], batch_size: int = 1000
